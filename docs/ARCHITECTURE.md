@@ -334,7 +334,7 @@ sequenceDiagram
   Supervisor->>Tel: Validate metrics vs past signature
   Tel-->>Supervisor: Matching p95 / error pattern
   Supervisor->>Supervisor: Raise confidence (memory match)
-  Note over Supervisor: HITL sees prior context; faster approval
+  Note over Supervisor: HITL sees prior context — faster approval
 ```
 
 ### 6.2 Hybrid cloud / on-prem ingestion
@@ -343,7 +343,7 @@ sequenceDiagram
 flowchart TB
   subgraph Customer["Customer environment"]
     ONPREM[Apps & private Git / telemetry]
-    AGENT[Bridge agent — outbound only]
+    AGENT["Bridge agent — outbound only<br/>No inbound ports open at customer edge"]
   end
 
   subgraph Cloud["AURA cloud"]
@@ -356,7 +356,6 @@ flowchart TB
   AGENT -->|Outbound gRPC / multiplexed stream| GW
   GW --> ORCH
   ORCH --> SEC
-  Note right of AGENT: Zero open inbound ports at customer edge
 ```
 
 ---
