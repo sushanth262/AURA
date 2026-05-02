@@ -2,7 +2,31 @@
 
 **AURA** (Agentic Understanding & Root-cause Analysis) is an AI-driven, multi-agent diagnostic and observability system. It correlates telemetry, source code, and operational context under a **security-first**, modular design to produce high-fidelity root cause analysis (RCA) and remediation guidance.
 
-This document follows the [C4 model](https://c4model.com/) (Context → Containers → Components). Implementation details at **Code** level are intentionally abstract until concrete services and repositories are pinned.
+This document follows the [C4 model](https://c4model.com/) — Context, Containers, Components, and optional Code-level detail. Implementation details at **Code** level are intentionally abstract until concrete services and repositories are pinned.
+
+### Abbreviations and acronyms
+
+| Term | Meaning |
+|------|---------|
+| **AURA** | Agentic Understanding & Root-cause Analysis — this platform. |
+| **RCA** | Root cause analysis. |
+| **C4** | [C4 model](https://c4model.com/) for layered architecture views. |
+| **RAG** | Retrieval-augmented generation — retrieve docs/code/embeddings before answering. |
+| **MCP** | Model Context Protocol — standard agent ↔ tool / connector invocation. |
+| **HITL** | Human-in-the-loop — operator review gates before remediation or publication. |
+| **BFF** | Backend for frontend — API tier tailored to the web UI and sessions. |
+| **PII** | Personally identifiable information. |
+| **LLM** | Large language model. |
+| **ITSM** | IT service management — tickets, change records, knowledge bases. |
+| **PromQL** | Prometheus query language (metrics). |
+| **KQL** | Kusto query language (e.g. Azure Monitor logs). |
+| **gRPC** | RPC framework; often used for multiplexed, efficient streams (hybrid bridge). |
+| **SaaS** | Software as a service. |
+| **VPC** | Virtual private cloud — customer-controlled network boundary. |
+| **AuthN / AuthZ** | Authentication / authorization. |
+| **SRE** | Site reliability engineering. |
+
+Where a term appears often in diagrams, labels stay short; this table is the canonical expansion.
 
 ---
 
@@ -25,8 +49,8 @@ This document follows the [C4 model](https://c4model.com/) (Context → Containe
 | Principle | Implication |
 |-----------|-------------|
 | **Multi-agent orchestration** | A central supervisor delegates to domain agents; execution is a dynamic graph, not a single linear prompt. |
-| **Grounding over guessing** | RAG over code, docs, and **incident memory** reduces hallucinations and ties conclusions to evidence. |
-| **Connector abstraction** | External systems (metrics, logs, Git, tickets) sit behind interchangeable connectors (including **MCP**-style tool protocols). |
+| **Grounding over guessing** | Retrieval-augmented generation (**RAG**) over code, docs, and **incident memory** reduces hallucinations and ties conclusions to evidence. |
+| **Connector abstraction** | External systems (metrics, logs, Git, tickets) sit behind interchangeable connectors (including Model Context Protocol (**MCP**)-style tool protocols). |
 | **Security by default** | PII and secret redaction, least-privilege credentials, and boundary-aware deployment before LLM processing. |
 | **Resilient async work** | Long investigations are queued and checkpointed; the UI stays responsive with streaming progress. |
 
@@ -38,8 +62,11 @@ This document follows the [C4 model](https://c4model.com/) (Context → Containe
 
 **External systems:** observability backends, source control, work tracking, knowledge bases, and customer-private environments reached via an outbound-safe hybrid bridge.
 
-- **Who touches what:** operators drive incidents and HITL; engineers consume reports; everything else is external capability AURA pulls from or persists into.
-- **One box for the product:** the core platform sits between people and backends—queues/embeddings are modeled as external stores here.
+**How to read this diagram**
+
+- **Actors** submit incidents and approve or reject remediation (**HITL**); engineers consume RCA outputs read-only through the same core.
+- **AURA core** is the trust boundary: one logical platform coordinating investigations without exposing internal agent topology at this zoom level.
+- **External systems** are everything AURA reads or writes via connectors; **Vector DB** and **Redis** are shown explicitly because embeddings (incident memory, code RAG) and queue/state drive behavior end-to-end.
 
 ```mermaid
 flowchart LR
@@ -75,8 +102,11 @@ flowchart LR
 
 Logical deployable units and data stores. Exact boundaries may collapse into fewer physical services in early implementations; the **responsibilities** remain stable.
 
-- **Edge:** browser talks only to API/BFF (including WebSockets).
-- **Orchestration spine:** orchestrator owns Redis checkpoints/progress; workers fan out to vector search, bridge, and redaction before LLM calls.
+**Flow (request path vs async path)**
+
+- **Interactive path:** Browser ↔ **API / BFF** ↔ **Orchestrator**; WebSockets carry progress and **HITL** prompts while HTTPS carries queries and commands.
+- **Execution path:** Orchestrator schedules **Agent worker pool** tasks; workers call **Security & redaction** before every **LLM** invocation; retrieval hits **Vector DB**; outbound data uses **Hybrid bridge** toward MCP/connectors.
+- **Durability:** Orchestrator and workers persist checkpoints and task state to **Redis**; orchestrator also emits progress events consumed by the **API / BFF** for streaming UX.
 
 ```mermaid
 flowchart TB
@@ -127,8 +157,11 @@ flowchart TB
 
 Components live mainly inside the **Supervisor orchestrator** and **Agent worker pool**, with shared use of **MCP** (or equivalent) for tool execution.
 
-- **Supervisor:** plans the graph, merges evidence, checkpoints to the task store.
-- **Workers:** share connectors (MCP), retrieval (RAG → vector DB), and masking before feeding synthesis.
+**Flow**
+
+- **Planning:** **Decomposition & planning** expands an incident into graph edges; **State graph engine** executes branches and merges partial results.
+- **Workers:** Telemetry, code, and context agents run in parallel where possible; each uses **MCP** for external APIs and **RAG** for embedding search (**Vector DB**).
+- **Safety & persistence:** All worker outputs pass **Security layer hooks** before synthesis; **Evidence synthesis** feeds **Checkpoint / resume**, which writes to **Redis** alongside graph coordination.
 
 ```mermaid
 flowchart TB
@@ -181,8 +214,7 @@ flowchart TB
 
 ### 4.2 Structural relationships (compact)
 
-- **Cardinality:** one supervisor coordinates many workers; workers use connectors and retrieval, not ad-hoc integrations.
-- **Persistence:** checkpoints land in the task store; connectors reach outward to labeled external sources.
+Structural view (not a runtime sequence): **Supervisor** owns many **WorkerAgents**; each worker touches **SecurityLayer**, **MCPConnector**, and **VectorDB**; the supervisor persists via **TaskStore**.
 
 ```mermaid
 classDiagram
@@ -233,8 +265,14 @@ classDiagram
 
 From intake through human gate to memory update — aligned with the reference lifecycle in project materials.
 
-- **Parallel discovery:** telemetry, code/RAG, and context run concurrently after decomposition.
-- **Gate:** rejection loops planning/memory refinement; approval triggers remediation and embedding updates.
+**Flow detail**
+
+1. **Normalize intake** — Alert or user-supplied symptoms become a structured incident (severity, scope, time window, optional artifacts).
+2. **Plan graph** — Supervisor chooses parallel vs sequential retrieval based on connectors and policies.
+3. **Retrieve & mask** — Telemetry, Git/RAG, and **ITSM**/docs queries run concurrently; results pass policy-aware redaction before fusion.
+4. **Synthesize** — Evidence is correlated (timelines, deploys, errors); confidence reflects agreement across agents and citation strength.
+5. **Human gate** — Rejection loops back to planning or memory tuning; approval triggers remediation hooks (runbooks, tickets, automation).
+6. **Memory writeback** — Approved or noteworthy incidents enrich embeddings so recurring failures surface faster later.
 
 ```mermaid
 flowchart TD
@@ -253,10 +291,20 @@ flowchart TD
   L --> M[Update incident memory in vector DB]
 ```
 
+- **Parallel retrieval** collapses wall-clock time; **Security layer** runs before synthesis so the **LLM** never sees raw secrets.
+- **HITL** is mandatory where policy demands it; rejection explicitly feeds refinement rather than silently retrying the same graph.
+
 ### 5.2 Sequence — asynchronous orchestration
 
-- **Fast ACK:** UI returns a task ID immediately while work lands on the queue.
-- **Streaming feedback:** checkpoints and progress events propagate back through the queue/BFF without blocking the supervisor loop.
+Typical timing: user receives a task id immediately; heavy work proceeds asynchronously while the UI subscribes to checkpoint-driven updates.
+
+**Flow detail**
+
+- **Enqueue & acknowledge** — UI writes a durable task; user gets correlation id without waiting for agents.
+- **Claim & checkpoint** — Supervisor idempotently claims work, persists graph state to **Redis**, then fans out **MCP** calls through workers.
+- **Parallel bounded phase** — `par` block: bounded parallelism with masking applied per connector result set.
+- **Progress fan-out** — Status changes land in a store the **API / BFF** can push over WebSockets.
+- **Close the loop** — Synthesis produces narrative + **HITL** payload; user decision is captured for audit and feedback.
 
 ```mermaid
 sequenceDiagram
@@ -295,8 +343,14 @@ sequenceDiagram
 
 ### 5.3 Supervisor state machine (conceptual)
 
-- **Retrieving** fans out to telemetry/code/context branches; **synthesis** assumes evidence from those branches is available (conceptually merged).
-- **HITL** is the explicit approval hinge before remediation and incident-memory persistence.
+Conceptual merge: three retrieval branches (**Telemetry**, **Code**, **Context**) enter **Synthesis** independently; production graphs may use guards (timeouts, partial evidence) before synthesis.
+
+**States**
+
+- **Retrieving** — Fan-out to domain agents (logical parallelism); failures map to retries or alternate edges not shown here.
+- **Synthesis** — Deterministic-ish fusion step before non-deterministic **LLM** narrative polish (still guarded by citations).
+- **HITL** — Blocks remediation until operator signal unless policy allows auto-remediation for low-risk runbooks.
+- **MemoryUpdate** — Writes embeddings/summaries for future **RAG** and similarity search.
 
 ```mermaid
 stateDiagram-v2
@@ -318,8 +372,13 @@ stateDiagram-v2
 
 ### 5.4 Component interaction — single “vertical slice”
 
-- **Pattern:** delegate domain work, normalize sensitive content once via redaction, then synthesize structured RCA output with citations.
-- **Outcome:** approved narratives feed incident memory for future retrieval.
+One incident moving left-to-right: supervisor delegates, agents return evidence through **Redaction**, synthesis yields **RCA** plus pointers into sources, then durable memory captures the outcome.
+
+**Flow detail**
+
+- **Supervisor** remains orchestrator-of-record; agents do not talk peer-to-peer.
+- **Redaction** is centralized on the return path so synthesis sees consistent policy application.
+- **Incident memory writeback** closes the loop for similarity search on the next incident.
 
 ```mermaid
 flowchart LR
@@ -343,8 +402,13 @@ flowchart LR
 
 ### 6.1 Recurring performance regression
 
-- **Semantic recall:** vector search pulls narratives/resolutions similar to the current alert.
-- **Grounded confirmation:** telemetry validates whether today’s signals match the historical signature before raising confidence for humans.
+Scenario: latency or error spikes resemble a resolved incident already stored in **Vector DB** embeddings.
+
+**Flow detail**
+
+- **Semantic match** narrows candidates (similar symptoms, services, deployments).
+- **Context agent** pulls narrative artifacts (ticket text, prior RCA); **Telemetry agent** confirms quantitative overlap (e.g. **p95**, error rates).
+- **Supervisor** bumps confidence when signature matches; **HITL** reviewers see cited prior incidents for quicker approval — without skipping accountability.
 
 ```mermaid
 sequenceDiagram
@@ -366,8 +430,13 @@ sequenceDiagram
 
 ### 6.2 Hybrid cloud / on-prem ingestion
 
-- **Trust boundary:** customer workloads stay private; only the lightweight bridge agent initiates egress.
-- **Cloud path:** gateway terminates the multiplexed stream into orchestration and policy scrubbing—no inbound listener requirement at the edge.
+Scenario: regulated data stays in the customer footprint; only outbound-initiated egress crosses the boundary.
+
+**Flow detail**
+
+- **Bridge agent** runs near apps/Git/telemetry; it opens connections outward — **no inbound listener** required at the customer edge for AURA.
+- **Gateway** terminates **gRPC** (or equivalent), authenticates and rate-limits streams, then hands payloads to orchestration.
+- **Redaction** remains in cloud policy scope before **LLM** or broad storage; customers may tighten further with VPC/on-prem deployment variants (see §7).
 
 ```mermaid
 flowchart TB
