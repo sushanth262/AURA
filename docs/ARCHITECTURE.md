@@ -38,6 +38,9 @@ This document follows the [C4 model](https://c4model.com/) (Context → Containe
 
 **External systems:** observability backends, source control, work tracking, knowledge bases, and customer-private environments reached via an outbound-safe hybrid bridge.
 
+- **Who touches what:** operators drive incidents and HITL; engineers consume reports; everything else is external capability AURA pulls from or persists into.
+- **One box for the product:** the core platform sits between people and backends—queues/embeddings are modeled as external stores here.
+
 ```mermaid
 flowchart LR
   subgraph Actors
@@ -71,6 +74,9 @@ flowchart LR
 ## 3. C4 Level 2 — Containers
 
 Logical deployable units and data stores. Exact boundaries may collapse into fewer physical services in early implementations; the **responsibilities** remain stable.
+
+- **Edge:** browser talks only to API/BFF (including WebSockets).
+- **Orchestration spine:** orchestrator owns Redis checkpoints/progress; workers fan out to vector search, bridge, and redaction before LLM calls.
 
 ```mermaid
 flowchart TB
@@ -120,6 +126,9 @@ flowchart TB
 ## 4. C4 Level 3 — Components
 
 Components live mainly inside the **Supervisor orchestrator** and **Agent worker pool**, with shared use of **MCP** (or equivalent) for tool execution.
+
+- **Supervisor:** plans the graph, merges evidence, checkpoints to the task store.
+- **Workers:** share connectors (MCP), retrieval (RAG → vector DB), and masking before feeding synthesis.
 
 ```mermaid
 flowchart TB
@@ -172,6 +181,9 @@ flowchart TB
 
 ### 4.2 Structural relationships (compact)
 
+- **Cardinality:** one supervisor coordinates many workers; workers use connectors and retrieval, not ad-hoc integrations.
+- **Persistence:** checkpoints land in the task store; connectors reach outward to labeled external sources.
+
 ```mermaid
 classDiagram
   class Supervisor {
@@ -221,6 +233,9 @@ classDiagram
 
 From intake through human gate to memory update — aligned with the reference lifecycle in project materials.
 
+- **Parallel discovery:** telemetry, code/RAG, and context run concurrently after decomposition.
+- **Gate:** rejection loops planning/memory refinement; approval triggers remediation and embedding updates.
+
 ```mermaid
 flowchart TD
   A[Issue intake: user / alert] --> B[Decomposition: supervisor graph generation]
@@ -239,6 +254,9 @@ flowchart TD
 ```
 
 ### 5.2 Sequence — asynchronous orchestration
+
+- **Fast ACK:** UI returns a task ID immediately while work lands on the queue.
+- **Streaming feedback:** checkpoints and progress events propagate back through the queue/BFF without blocking the supervisor loop.
 
 ```mermaid
 sequenceDiagram
@@ -277,6 +295,9 @@ sequenceDiagram
 
 ### 5.3 Supervisor state machine (conceptual)
 
+- **Retrieving** fans out to telemetry/code/context branches; **synthesis** assumes evidence from those branches is available (conceptually merged).
+- **HITL** is the explicit approval hinge before remediation and incident-memory persistence.
+
 ```mermaid
 stateDiagram-v2
   [*] --> Intake
@@ -296,6 +317,9 @@ stateDiagram-v2
 ```
 
 ### 5.4 Component interaction — single “vertical slice”
+
+- **Pattern:** delegate domain work, normalize sensitive content once via redaction, then synthesize structured RCA output with citations.
+- **Outcome:** approved narratives feed incident memory for future retrieval.
 
 ```mermaid
 flowchart LR
@@ -319,6 +343,9 @@ flowchart LR
 
 ### 6.1 Recurring performance regression
 
+- **Semantic recall:** vector search pulls narratives/resolutions similar to the current alert.
+- **Grounded confirmation:** telemetry validates whether today’s signals match the historical signature before raising confidence for humans.
+
 ```mermaid
 sequenceDiagram
   participant Alert
@@ -338,6 +365,9 @@ sequenceDiagram
 ```
 
 ### 6.2 Hybrid cloud / on-prem ingestion
+
+- **Trust boundary:** customer workloads stay private; only the lightweight bridge agent initiates egress.
+- **Cloud path:** gateway terminates the multiplexed stream into orchestration and policy scrubbing—no inbound listener requirement at the edge.
 
 ```mermaid
 flowchart TB
