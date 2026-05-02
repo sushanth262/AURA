@@ -334,7 +334,7 @@ sequenceDiagram
   Supervisor->>Tel: Validate metrics vs past signature
   Tel-->>Supervisor: Matching p95 / error pattern
   Supervisor->>Supervisor: Raise confidence (memory match)
-  Note over Supervisor: HITL sees prior context — faster approval
+  Supervisor->>Supervisor: HITL sees prior context, faster approval
 ```
 
 ### 6.2 Hybrid cloud / on-prem ingestion
