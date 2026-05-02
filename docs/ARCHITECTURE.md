@@ -282,12 +282,12 @@ stateDiagram-v2
   [*] --> Intake
   Intake --> Planning: incident normalized
   Planning --> Retrieving: graph edges ready
-  state Retrieving {
-    [*] --> Telemetry
-    [*] --> Code
-    [*] --> Context
-  }
-  Retrieving --> Synthesis: all branches satisfied or timeout policy
+  Retrieving --> Telemetry
+  Retrieving --> Code
+  Retrieving --> Context
+  Telemetry --> Synthesis
+  Code --> Synthesis
+  Context --> Synthesis
   Synthesis --> HITL: confidence & report ready
   HITL --> Remediation: approved
   HITL --> Planning: rejected / refine
@@ -343,7 +343,7 @@ sequenceDiagram
 flowchart TB
   subgraph Customer["Customer environment"]
     ONPREM[Apps & private Git / telemetry]
-    AGENT["Bridge agent — outbound only<br/>No inbound ports open at customer edge"]
+    AGENT["Bridge agent — outbound only (no inbound ports at customer edge)"]
   end
 
   subgraph Cloud["AURA cloud"]
