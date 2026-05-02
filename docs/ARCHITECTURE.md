@@ -4,7 +4,7 @@
 
 This document follows the [C4 model](https://c4model.com/) — Context, Containers, Components, and optional Code-level detail. Implementation details at **Code** level are intentionally abstract until concrete services and repositories are pinned.
 
-### Abbreviations and acronyms
+## Abbreviations and acronyms
 
 | Term | Meaning |
 |------|---------|
@@ -31,6 +31,8 @@ Where a term appears often in diagrams, labels stay short; this table is the can
 ---
 
 ## Table of contents
+
+[Abbreviations and acronyms](#abbreviations-and-acronyms)
 
 1. [Goals and design principles](#1-goals-and-design-principles)
 2. [C4 Level 1 — System context](#2-c4-level-1--system-context)
