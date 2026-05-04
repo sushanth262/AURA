@@ -1,0 +1,1802 @@
+openapi: 3.1.0
+
+info:
+  title: AURA — Agentic Understanding & Root-cause Analysis
+  version: 0.1.0-draft
+  summary: BFF REST API consumed by the AURA Web UI (React Native / Expo)
+  description: |
+    This spec covers the REST API served by the **API / BFF** container and the
+    WebSocket channel used for live investigation streaming. It is the single
+    source of truth for the `aura-frontend` React Native / Expo application.
+
+    Companion documents:
+    - `docs/WIREFRAMES.md` — screen-level wireframes
+    - `docs/PRODUCTION_SPECIFICATIONS.md` — full contract and SLA definitions
+    - `docs/ARCHITECTURE.md` — C4 container and component diagrams
+
+    ### Screen → Operation Map
+
+    | Screen | Route | Primary API |
+    |--------|-------|-------------|
+    | 1 — Incident Intake | `/` | `POST /api/incidents` |
+    | 2 — Live Progress | `/investigations/:taskId/progress` | `WS /ws/investigations/{task_id}` |
+    | 3 — Evidence Review | `/investigations/:taskId/evidence` | `GET /api/investigations/{task_id}/evidence` |
+    | 4a — HITL Rejection | `/investigations/:taskId/reject` | `POST /api/investigations/{task_id}/hitl` (REJECTED) |
+    | 4b — HITL Approval | `/investigations/:taskId/approve` | `POST /api/investigations/{task_id}/hitl` (APPROVED) |
+    | 5 — Remediation | `/investigations/:taskId/resolved` | `POST /api/investigations/{task_id}/remediation` |
+    | 6 — Incident History | `/history` | `GET /api/incidents/history` |
+
+    ### OAuth 2.0 Scopes
+
+    | Scope | Grants |
+    |-------|--------|
+    | `read:incidents` | GET incidents, history |
+    | `write:incidents` | POST new incident |
+    | `read:investigations` | GET evidence bundle |
+    | `write:hitl` | POST HITL decision and remediation trigger |
+    | `admin:config` | Tenant configuration (not used by frontend) |
+
+    ### Performance SLAs (from §2.1)
+    - Intake → task_id acknowledgment: **< 500 ms p99**
+    - First WebSocket progress event: **< 2 s**
+    - Full investigation → HITL prompt: **< 120 s p95**
+    - REST GET p99 latency: **< 200 ms**
+    - REST POST p99 latency: **< 500 ms**
+
+  contact:
+    name: AURA Platform Engineering
+  license:
+    name: Proprietary
+
+# ─── WebSocket channel (OpenAPI 3.1 does not natively model WS; described here) ─
+x-websocket-channels:
+  /ws/investigations/{task_id}:
+    summary: Live investigation progress stream
+    description: |
+      Subscribe immediately after `POST /api/incidents` returns `task_id`.
+      Connection URL: `wss://{host}/ws/investigations/{task_id}?token={jwt}`
+
+      **Heartbeat**: server sends `PING` every 30 s; client must `PONG` within 10 s
+      or the connection is closed.
+
+      **Missed-event recovery**: after reconnect the client sends a
+      `WSReplayRequest` with the last received `sequence_num`; the server
+      replays all events with `sequence_num >= N` from the Redis Stream.
+
+      **Auto-navigation triggers**:
+      - `SYNTHESIS_COMPLETE` → navigate to Screen 3 (Evidence Review)
+      - `REMEDIATION_COMPLETE` → navigate to Screen 5 (Remediation Complete)
+      - `TASK_FAILED` → show error banner
+    parameters:
+      task_id:
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    messages:
+      server-to-client:
+        $ref: '#/components/schemas/TaskProgressEvent'
+      client-to-server:
+        oneOf:
+          - $ref: '#/components/schemas/WSReplayRequest'
+          - $ref: '#/components/schemas/WSPong'
+
+# ─── UI Component Hierarchy ──────────────────────────────────────────────────
+x-ui-component-hierarchy:
+  description: >
+    Maps each wireframe screen to its React Native component tree and the API
+    operations it depends on. Component names are PascalCase; props are camelCase.
+    Children indentation represents nesting in the render tree.
+
+  shared:
+    AppShell:
+      description: Root layout; wraps every screen. Provides AuthContext and TenantContext.
+      children:
+        NavBar:
+          props: [currentUser, onHistoryNav, onNewInvestigation]
+          children:
+            BrandLogo: {}
+            NavButton: { label: "Incident History" }
+            UserMenu:
+              children:
+                AvatarBadge: { liveIndicator: true }
+                DropdownMenu: {}
+        ScreenOutlet: {}
+
+  screens:
+    IncidentIntake:
+      route: "/"
+      api: ["POST /api/incidents"]
+      description: Screen 1 — submit a new investigation
+      components:
+        PageHeading: { text: "New Investigation" }
+        IncidentForm:
+          children:
+            TitleInput:
+              props: [value, onChange, maxLength=200, placeholder]
+            SeverityPicker:
+              props: [value, onChange]
+              options: [P1, P2, P3, P4]
+              children:
+                SeverityOption: { props: [value, label, colorDot] }
+            ScopeInput:
+              props: [value, onChange, placeholder]
+            TimeWindowPicker:
+              children:
+                DateTimeInput: { props: [label="Start", value, onChange] }
+                DateTimeInput: { props: [label="End (blank=ongoing)", value, onChange, nullable=true] }
+            SymptomsTextarea:
+              props: [value, onChange, maxLength=2000, charCount]
+            ArtifactList:
+              children:
+                ArtifactRow:
+                  props: [artifact, onRemove]
+                  children:
+                    ArtifactTypeChip: {}
+                    ArtifactSourceLabel: {}
+                    ArtifactPreviewText: {}
+                    RemoveButton: {}
+                AttachArtifactButton:
+                  opens: ArtifactDrawer
+        ArtifactDrawer:
+          description: "Overlay A — attaches a new artifact to the intake form"
+          props: [open, onClose, onAdd]
+          children:
+            TypeSelect:
+              options: [STACK_TRACE, ALERT_PAYLOAD, LOG_EXCERPT, METRIC_SNAPSHOT, OTHER]
+            SourceLabelInput: { props: [value, onChange] }
+            ContentTextarea:
+              props: [value, onChange, maxBytes=10240, byteCount]
+            DrawerActionBar:
+              children:
+                CancelButton: {}
+                AddArtifactButton: {}
+        FormActionBar:
+          children:
+            CancelButton: {}
+            SubmitButton:
+              label: "Start Investigation →"
+              props: [onPress, loading, disabled]
+
+    LiveProgress:
+      route: "/investigations/:taskId/progress"
+      api: ["WS /ws/investigations/{task_id}"]
+      description: Screen 2 — real-time investigation graph and agent activity
+      components:
+        IncidentHeader:
+          props: [title, severity, status, incidentId, startedAt, scope]
+          children:
+            BackButton: {}
+            SeverityBadge: {}
+            StatusChip: { variants: [INVESTIGATING, REPLANNING, FAILED] }
+        InvestigationGraph:
+          description: Visual state graph showing nodes and directed edges
+          props: [graphState]
+          children:
+            GraphNode:
+              variants: [INTAKE, PLAN, TELEMETRY, CODE, CONTEXT, SYNTHESIZE]
+              props: [status, label]
+              statusIcons: { complete: "✅", running: "⠿", waiting: "⬜" }
+            GraphEdge:
+              props: [from, to, active]
+        TimelinePanel:
+          props: [events, isLive]
+          children:
+            LiveBadge: {}
+            TimelineItem:
+              props: [event, status]
+              statusIcons: { complete: "✅", running: "⠿" }
+            RawEventsDrawer:
+              props: [open, events]
+        StatusPanel:
+          children:
+            AgentStatusList:
+              children:
+                AgentStatusBadge:
+                  props: [domain, active]
+                  domains: [telemetry, code, context]
+            ElapsedTimer: { props: [startedAt] }
+            EstimatedRemainingTimer: { props: [estimatedDuration, elapsed] }
+        AgentActivityPanel:
+          children:
+            AgentProgressRow:
+              props: [domain, progressPct, statusLabel]
+              children:
+                DomainIcon: {}
+                ProgressBar: { props: [value, max=100] }
+                StatusLabel: {}
+
+    EvidenceReview:
+      route: "/investigations/:taskId/evidence"
+      api: ["GET /api/investigations/{task_id}/evidence"]
+      description: Screen 3 — HITL review of synthesized evidence
+      components:
+        IncidentHeader:
+          props: [title, severity, status=AWAITING_REVIEW, incidentId, completedAt, scope]
+        ConfidencePanel:
+          props: [confidenceScore, breakdown]
+          children:
+            OverallConfidenceBar:
+              props: [value]
+              colorThresholds: { green: 0.75, amber: 0.50, red: 0.0 }
+              children:
+                ConfidenceLabel: {}
+                ConfidenceTier: { values: [HIGH, MEDIUM, LOW] }
+            ConfidenceBreakdownRow:
+              props: [label, value]
+              instances:
+                - { label: "Citation strength", field: citation_strength }
+                - { label: "Agent agreement", field: agent_agreement }
+                - { label: "Memory match boost", field: memory_match_boost }
+                - { label: "Rejection penalty", field: rejection_penalty }
+        NarrativePanel:
+          props: [narrative, evidenceRefs]
+          children:
+            NarrativeText:
+              description: Renders citation footnotes as tappable links
+              props: [text, onFootnotePress]
+            FootnoteBar:
+              props: [refs, onRefPress]
+              opens: EvidenceDeepLinkDrawer
+        AgentEvidenceTabs:
+          props: [agentSummaries, findings]
+          children:
+            TabBar:
+              tabs: [telemetry, code, context]
+              children:
+                AgentTabLabel: { props: [domain, icon] }
+            FindingCard:
+              props: [finding]
+              children:
+                FindingTypeChip: {}
+                ConfidencePip: {}
+                FindingDescription: {}
+                SupportingEvidenceList: {}
+        RootCauseCandidateList:
+          props: [candidates]
+          children:
+            CandidateRow:
+              props: [candidate, isPrimary]
+              children:
+                PrimaryIndicator: { values: ["●", "○"] }
+                CandidateDescription: {}
+                ConfidenceMiniBar: { props: [value] }
+                ExpandCollapseToggle: {}
+                CitationList:
+                  visibleWhen: expanded
+        RecommendedActionList:
+          props: [actions]
+          children:
+            ActionBullet: { props: [description] }
+        PriorIncidentMatchBanner:
+          props: [match]
+          visibleWhen: "prior_incident_matches.length > 0"
+          children:
+            MatchLabel: {}
+            SimilarityScore: {}
+            ViewMatchLink: {}
+        HITLActionBar:
+          children:
+            RejectButton:
+              label: "Reject ↩"
+              navigatesTo: HITLRejection
+            ApproveButton:
+              label: "Approve & Remediate →"
+              navigatesTo: HITLApproval
+        EvidenceDeepLinkDrawer:
+          description: "Overlay B — evidence source detail from footnote tap"
+          props: [evidenceRef, open, onClose]
+          children:
+            SourceTypeLabel: {}
+            MetadataTable: {}
+            DiffExcerpt: { visibleWhen: "source_type=github" }
+            ConfidenceContributionLabel: {}
+            OpenInSourceButton: {}
+
+    HITLRejection:
+      route: "/investigations/:taskId/reject"
+      api: ["POST /api/investigations/{task_id}/hitl"]
+      description: Screen 4a — operator rejects and sends investigation back for replanning
+      components:
+        BackLink: { label: "← Back to Evidence" }
+        RejectionModal:
+          children:
+            ModalHeading: { label: "↩ Reject Investigation" }
+            IncidentMetaRow:
+              props: [incidentId, title, confidenceScore, iteration, maxIterations]
+            ReasonCheckboxGroup:
+              props: [selectedCategories, onChange]
+              children:
+                ReasonCheckbox:
+                  options:
+                    - { value: WRONG_SERVICE, label: "Wrong service identified" }
+                    - { value: INCORRECT_TIME_WINDOW, label: "Incorrect time window" }
+                    - { value: MISSING_DATA_SOURCE, label: "Missing data source" }
+                    - { value: ROOT_CAUSE_KNOWN, label: "Root cause already known" }
+                    - { value: OTHER, label: "Other" }
+                MissingSourceInput:
+                  props: [value, onChange]
+                  visibleWhen: "MISSING_DATA_SOURCE checked"
+            ContextTextarea:
+              props: [value, onChange, maxLength=500, charCount]
+              label: "Additional context for the supervisor"
+            IterationWarningBanner:
+              visibleWhen: "iteration === maxIterations - 1"
+            ModalActionBar:
+              children:
+                CancelButton: {}
+                SubmitButton:
+                  label: "Send back for replanning ↩"
+                  escalateLabel: "Escalate manually"
+                  props: [onPress, loading, isLastIteration]
+
+    HITLApproval:
+      route: "/investigations/:taskId/approve"
+      api:
+        - "POST /api/investigations/{task_id}/hitl"
+        - "POST /api/investigations/{task_id}/remediation"
+      description: Screen 4b — operator approves and selects remediation actions
+      components:
+        BackLink: { label: "← Back to Evidence" }
+        ApprovalModal:
+          children:
+            ModalHeading: { label: "✓ Approve & Remediate" }
+            IncidentMetaRow:
+              props: [incidentId, title, confidenceScore, confidenceTier]
+            ActionChecklist:
+              props: [actions, selectedIds, onToggle]
+              children:
+                ActionCheckItem:
+                  props: [action, selected, onToggle]
+                  children:
+                    Checkbox: {}
+                    ActionDescription: {}
+                    EstTimeBadge: { props: [seconds] }
+                    RiskBadge:
+                      props: [risk]
+                      colorMap: { Low: green, Med: amber, High: red }
+                    AutomationLabel: { values: [Automated, Manual] }
+                    ReversibilityLabel: {}
+            ProductionWarningBanner:
+              props: [reviewerEmail]
+            ReAuthInput:
+              props: [value, onChange, onSubmit]
+              description: Password or SSO token re-authentication
+              children:
+                PasswordInput: {}
+                SSOButton: {}
+            ModalActionBar:
+              children:
+                CancelButton: {}
+                ExecuteButton:
+                  props: [selectedCount, onPress, loading]
+                  labelTemplate: "Execute {N} selected actions ✓"
+
+    RemediationComplete:
+      route: "/investigations/:taskId/resolved"
+      api: []
+      description: Screen 5 — populated from REMEDIATION_COMPLETE WebSocket event
+      components:
+        IncidentHeader:
+          props: [title, severity, status=RESOLVED, incidentId, resolvedAt, scope]
+        ErrorRateRecoveryChart:
+          description: >
+            Post-incident telemetry chart. Hidden if telemetry data is unavailable.
+            Rendered from payload in REMEDIATION_COMPLETE WebSocket event.
+          props: [dataPoints, deployMarker, rollbackMarker]
+          children:
+            TimeSeriesLine: { props: [data] }
+            YAxisLabel: { text: "errors/min" }
+            XAxisLabels: {}
+            EventMarker:
+              instances:
+                - { type: deploy, label: "↑ deploy {version}" }
+                - { type: rollback, label: "↑ rollback {version}" }
+        RemediationLog:
+          props: [logEntries]
+          children:
+            RemediationLogRow:
+              props: [entry]
+              children:
+                StatusIcon: { values: ["✅", "❌"] }
+                TimestampLabel: {}
+                ActionDescription: {}
+        InvestigationSummaryCard:
+          props: [summary]
+          children:
+            SummaryRow: { instances: [rootCause, confidence, timeToHITL, timeToResolve, reviewer, decision, resolvedAt] }
+        ScreenActionBar:
+          children:
+            ViewEvidenceButton: { navigatesTo: EvidenceReview }
+            NewInvestigationButton: { navigatesTo: IncidentIntake }
+
+    IncidentHistory:
+      route: "/history"
+      api: ["GET /api/incidents/history"]
+      description: Screen 6 — paginated history with stats and filtering
+      components:
+        PageHeading: { text: "Incident History" }
+        StatsSummaryBar:
+          props: [stats]
+          children:
+            StatCard:
+              instances:
+                - { label: "Total (30d)", field: total_count }
+                - { label: "Avg time-to-diagnose", field: avg_time_to_diagnose_seconds }
+                - { label: "Avg confidence", field: avg_confidence_score }
+                - { label: "Resolved", field: resolved_pct, suffix: "%" }
+        FilterBar:
+          props: [filters, onChange]
+          children:
+            SearchInput: { props: [value, onChange, placeholder] }
+            SeveritySelect: { options: [All, P1, P2, P3, P4] }
+            StatusSelect: { options: [All, COMPLETE, INVESTIGATING, FAILED] }
+            DateRangeSelect: { options: ["Last 7d", "Last 30d", "Last 90d", Custom] }
+        IncidentTable:
+          props: [items, sortBy, sortDir, onSortChange]
+          children:
+            TableHeader:
+              columns: [ID, Title, Severity, Status, Confidence, Age]
+              props: [sortable=true]
+            IncidentTableRow:
+              props: [incident]
+              onPress: "navigatesTo EvidenceReview"
+              children:
+                IncidentIdLabel: {}
+                TitleLabel: {}
+                SeverityBadge: { colorMap: { P1: red, P2: amber, P3: amber, P4: green } }
+                StatusChip:
+                  variants:
+                    resolved: { icon: "✅", color: green }
+                    rejected: { icon: "↩", color: amber }
+                    investigating: { icon: "⠿", color: blue }
+                ConfidencePip: { nullable: true, hiddenWhenInProgress: true }
+                AgeLabel: {}
+                RowActionMenu: { actions: [reopen] }
+        Pagination:
+          props: [page, perPage, total, onPageChange]
+
+# ─── Servers ─────────────────────────────────────────────────────────────────
+servers:
+  - url: https://api.aura.internal/v1
+    description: Production (SaaS)
+  - url: https://api-staging.aura.internal/v1
+    description: Staging
+  - url: http://localhost:8080/v1
+    description: Local development
+
+# ─── Tags ────────────────────────────────────────────────────────────────────
+tags:
+  - name: incidents
+    description: Incident submission and state queries (Screens 1, 6)
+  - name: investigations
+    description: Evidence retrieval from completed synthesis (Screen 3)
+  - name: hitl
+    description: Human-in-the-loop review and decision (Screens 4a, 4b)
+  - name: remediation
+    description: Remediation action execution (Screen 5)
+  - name: system
+    description: Health and readiness probes
+
+# ─── Global security ─────────────────────────────────────────────────────────
+security:
+  - BearerAuth: [read:incidents]
+
+# ─── Paths ───────────────────────────────────────────────────────────────────
+paths:
+
+  /api/incidents:
+    post:
+      operationId: submitIncident
+      summary: Submit a new incident for investigation
+      description: |
+        Validates and enqueues a new investigation task. Responds in < 500 ms p99
+        with a `task_id`. The client must immediately subscribe to
+        `WS /ws/investigations/{task_id}` to receive live progress events.
+
+        **Screen 1 → Screen 2**: triggered by "Start Investigation →" button.
+        On success, navigate to the Live Progress screen using the returned `task_id`.
+      tags: [incidents]
+      security:
+        - BearerAuth: [write:incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentSubmission'
+            examples:
+              p2_gateway_spike:
+                summary: P2 API gateway 5xx spike (Screen 1 prefill example)
+                value:
+                  title: "API gateway 5xx spike — us-east-1"
+                  severity: P2
+                  scope:
+                    service: payments-api
+                    cluster: prod-us-east-1
+                    region: us-east-1
+                  time_window:
+                    start: "2026-05-03T14:30:00Z"
+                    end: null
+                  symptoms: >
+                    4x increase in HTTP 5xx errors starting 14:31 UTC on
+                    payments-api. p95 latency jumped from 780ms to 4.2s.
+                    Affecting all payment endpoints in us-east-1.
+                  artifacts:
+                    - artifact_type: STACK_TRACE
+                      content: "java.lang.NullPointerException at PaymentProcessor.charge()..."
+                      source: "Datadog alert #D-12345"
+      responses:
+        '202':
+          description: Investigation accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentQueuedResponse'
+              example:
+                task_id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                incident_id: "550e8400-e29b-41d4-a716-446655440000"
+                status: QUEUED
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/incidents/history:
+    get:
+      operationId: listIncidentHistory
+      summary: List paginated incident history with aggregate stats
+      description: |
+        Returns `IncidentSummary` rows and a `HistoryStats` block for the
+        authenticated tenant. Default sort: `incident_id` descending.
+        Results are tenant-isolated by the `tenant_id` JWT claim.
+
+        **Screen 6 — Incident History**: powers both the stats bar and the
+        incident table. Called on mount and after filter changes.
+      tags: [incidents]
+      security:
+        - BearerAuth: [read:incidents]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 1-based page number
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: severity
+          in: query
+          schema:
+            $ref: '#/components/schemas/Severity'
+          description: Filter by a single severity level
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/InvestigationStatus'
+          description: Filter by investigation status
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Lower bound on `created_at` (ISO-8601)
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+          description: Full-text search on title and scope.service
+      responses:
+        '200':
+          description: Paginated incident history with stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentHistoryPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/incidents/{incident_id}:
+    get:
+      operationId: getIncident
+      summary: Get incident status by ID
+      description: |
+        Lightweight polling endpoint for incident status and task association.
+        Prefer WebSocket for real-time updates. Use this on initial page load
+        to restore state after a browser refresh.
+      tags: [incidents]
+      security:
+        - BearerAuth: [read:incidents]
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current incident state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentStateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/investigations/{task_id}/evidence:
+    get:
+      operationId: getEvidenceBundle
+      summary: Retrieve the full evidence bundle for a completed investigation
+      description: |
+        Returns the `EvidenceBundle` produced by synthesis, including:
+        - Citation-tagged narrative
+        - Confidence score and breakdown
+        - Per-agent finding tabs (telemetry, code, context)
+        - Ranked root cause candidates
+        - Recommended actions for Screen 4b checklist
+        - Prior incident similarity matches
+
+        **Screen 2 → Screen 3**: called automatically when the WebSocket emits
+        `SYNTHESIS_COMPLETE`. Returns `202` while synthesis is still running.
+
+        Footnote refs `[¹][²][³]` in `narrative` correspond to `evidence_refs`
+        entries by index. The frontend opens `EvidenceDeepLinkDrawer` on tap.
+      tags: [investigations]
+      security:
+        - BearerAuth: [read:investigations]
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Full evidence bundle ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceBundle'
+        '202':
+          description: Investigation still in progress — not yet synthesized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestigationInProgressResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/investigations/{task_id}/hitl:
+    post:
+      operationId: submitHITLDecision
+      summary: Submit an approve or reject HITL decision
+      description: |
+        **Screen 4a (Rejection)**: `decision=REJECTED`. Supply `reason` and
+        `categories`. Supervisor transitions `HITL_PENDING → REPLANNING`.
+        Client navigates back to Screen 2 (Live Progress) for the replan.
+
+        **Screen 4b (Approval)**: `decision=APPROVED`. Returns `next_state=REMEDIATION`.
+        Client then calls `POST /api/investigations/{task_id}/remediation`.
+
+        **Re-authentication**: the frontend must obtain an elevated session scope
+        or re-prompt for credentials before calling this endpoint on approval
+        (per §3.5 of PRODUCTION_SPECIFICATIONS.md).
+
+        **Idempotent**: a duplicate submission with the same `decision` returns
+        `200` with the current state. A conflicting second decision returns `409`.
+      tags: [hitl]
+      security:
+        - BearerAuth: [write:hitl]
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HITLDecision'
+            examples:
+              approve:
+                summary: Operator approves
+                value:
+                  decision: APPROVED
+                  reason: null
+                  reviewer_id: "dsushanth"
+              reject_wrong_service:
+                summary: Operator rejects — wrong service
+                value:
+                  decision: REJECTED
+                  reason: >
+                    The nil-pointer is in the gateway layer, not payments-api.
+                    Please re-check commits in api-gateway service.
+                  categories: [WRONG_SERVICE]
+                  reviewer_id: "dsushanth"
+              reject_missing_source:
+                summary: Operator rejects — missing data source
+                value:
+                  decision: REJECTED
+                  reason: "Missing Grafana Loki logs for the gateway pods."
+                  categories: [MISSING_DATA_SOURCE]
+                  reviewer_id: "dsushanth"
+      responses:
+        '200':
+          description: HITL decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HITLResponse'
+              examples:
+                approved:
+                  value:
+                    status: HITL_RESOLVED
+                    next_state: REMEDIATION
+                    task_id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                rejected:
+                  value:
+                    status: HITL_RESOLVED
+                    next_state: PLANNING
+                    task_id: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Investigation is not in HITL_PENDING state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error_code: INVALID_STATE_TRANSITION
+                message: "Cannot submit HITL decision: investigation is in REPLANNING state"
+
+  /api/investigations/{task_id}/remediation:
+    post:
+      operationId: triggerRemediation
+      summary: Execute selected approved remediation actions
+      description: |
+        Called after `POST /hitl` with `decision=APPROVED`. The `approved_action_ids`
+        array must contain only IDs from `EvidenceBundle.recommended_actions`.
+
+        **Screen 4b → Screen 5**: triggers transition to `REMEDIATION` state.
+        Client subscribes to `REMEDIATION_COMPLETE` WebSocket event to populate
+        Screen 5 with the remediation log and error rate recovery chart.
+      tags: [remediation]
+      security:
+        - BearerAuth: [write:hitl]
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemediationTrigger'
+            example:
+              approved_action_ids:
+                - "a1b2c3d4-0000-0000-0000-000000000001"
+                - "a1b2c3d4-0000-0000-0000-000000000002"
+      responses:
+        '202':
+          description: Remediation accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemediationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: HITL approval has not been recorded for this investigation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error_code: HITL_NOT_APPROVED
+                message: "Cannot trigger remediation: HITL approval is required first"
+
+  /health:
+    get:
+      operationId: livenessCheck
+      summary: Kubernetes liveness probe
+      description: Returns 200 if the BFF process is alive.
+      tags: [system]
+      security: []
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+              example:
+                status: ok
+
+  /ready:
+    get:
+      operationId: readinessCheck
+      summary: Kubernetes readiness probe
+      description: >
+        Returns 200 only when the Redis connection is live.
+        The BFF is removed from the load balancer when this returns 503.
+      tags: [system]
+      security: []
+      responses:
+        '200':
+          description: Service is ready to accept traffic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ready]
+        '503':
+          description: Service is not ready (Redis unreachable)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, reason]
+                properties:
+                  status:
+                    type: string
+                    enum: [not_ready]
+                  reason:
+                    type: string
+              example:
+                status: not_ready
+                reason: redis_unreachable
+
+# ─── Components ──────────────────────────────────────────────────────────────
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OIDC/OAuth 2.0 JWT. Required claims: `sub`, `tenant_id`, `scope`, `exp`.
+        Supported identity providers: Keycloak, Auth0, Okta, Microsoft Entra ID.
+        HITL approval and remediation trigger require the `write:hitl` scope and
+        re-authentication or an elevated session scope (§3.5).
+
+  schemas:
+
+    # ── Enums ─────────────────────────────────────────────────────────────────
+
+    Severity:
+      type: string
+      enum: [P1, P2, P3, P4]
+      description: "P1=Critical (jumps queue), P2=Major, P3=Minor, P4=Informational"
+      x-ui-color-map:
+        P1: red
+        P2: amber
+        P3: amber
+        P4: green
+
+    InvestigationStatus:
+      type: string
+      enum:
+        - QUEUED
+        - INTAKE
+        - PLANNING
+        - RETRIEVING
+        - SYNTHESIS
+        - HITL_PENDING
+        - REPLANNING
+        - REMEDIATION
+        - MEMORY_WRITEBACK
+        - COMPLETE
+        - PARTIAL_EVIDENCE
+        - FAILED
+      x-ui-display-map:
+        QUEUED: "Queued"
+        INTAKE: "Normalizing"
+        PLANNING: "Planning"
+        RETRIEVING: "Investigating"
+        SYNTHESIS: "Synthesizing"
+        HITL_PENDING: "Awaiting Review"
+        REPLANNING: "Replanning"
+        REMEDIATION: "Remediating"
+        MEMORY_WRITEBACK: "Saving"
+        COMPLETE: "Resolved"
+        PARTIAL_EVIDENCE: "Partial Evidence"
+        FAILED: "Failed"
+
+    AgentDomain:
+      type: string
+      enum: [telemetry, code, context, supervisor]
+      x-ui-icon-map:
+        telemetry: "📡"
+        code: "💻"
+        context: "📄"
+        supervisor: "🔧"
+
+    ArtifactType:
+      type: string
+      enum: [STACK_TRACE, LOG_EXCERPT, ALERT_PAYLOAD, METRIC_SNAPSHOT, OTHER]
+
+    FindingType:
+      type: string
+      enum:
+        - METRIC_ANOMALY
+        - LOG_ERROR_BURST
+        - SATURATION_EVENT
+        - REGIONAL_ANOMALY
+        - COMMIT_REGRESSION_CANDIDATE
+        - DEPLOY_CORRELATION
+        - CODE_PATTERN_MATCH
+        - FIX_PROPOSAL
+        - INTENTIONAL_CHANGE
+        - REGRESSION_TICKET
+        - RUNBOOK_MATCH
+        - RFC_CONTEXT
+
+    HITLDecisionEnum:
+      type: string
+      enum: [APPROVED, REJECTED]
+
+    RejectionCategory:
+      type: string
+      enum:
+        - WRONG_SERVICE
+        - INCORRECT_TIME_WINDOW
+        - MISSING_DATA_SOURCE
+        - ROOT_CAUSE_KNOWN
+        - OTHER
+      x-ui-label-map:
+        WRONG_SERVICE: "Wrong service identified"
+        INCORRECT_TIME_WINDOW: "Incorrect time window"
+        MISSING_DATA_SOURCE: "Missing data source — specify below"
+        ROOT_CAUSE_KNOWN: "Root cause already known"
+        OTHER: "Other"
+
+    ActionRisk:
+      type: string
+      enum: [Low, Med, High]
+      x-ui-color-map:
+        Low: green
+        Med: amber
+        High: red
+
+    ActionAutomation:
+      type: string
+      enum: [Automated, Manual]
+
+    WSEventType:
+      type: string
+      enum:
+        - TASK_CLAIMED
+        - AGENT_STARTED
+        - AGENT_COMPLETE
+        - SYNTHESIS_STARTED
+        - SYNTHESIS_COMPLETE
+        - HITL_REQUESTED
+        - HITL_RESOLVED
+        - REMEDIATION_STARTED
+        - REMEDIATION_COMPLETE
+        - TASK_FAILED
+      x-ui-navigation-triggers:
+        SYNTHESIS_COMPLETE: "navigate to Screen 3 (Evidence Review)"
+        REMEDIATION_COMPLETE: "navigate to Screen 5 (Remediation Complete)"
+        TASK_FAILED: "show error banner on current screen"
+
+    AgentStatus:
+      type: string
+      enum: [SUCCESS, PARTIAL, FAILED, SKIPPED]
+
+    # ── Common Objects ────────────────────────────────────────────────────────
+
+    TimeWindow:
+      type: object
+      required: [start]
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: ISO-8601 UTC start of the incident time window
+        end:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO-8601 UTC end; null = ongoing incident (rolling 30-min lookback)
+
+    Scope:
+      type: object
+      required: [service]
+      properties:
+        service:
+          type: string
+          maxLength: 100
+          description: Service or application name (e.g. "payments-api")
+        cluster:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Kubernetes cluster name or equivalent
+        region:
+          type: string
+          maxLength: 50
+          nullable: true
+          description: Cloud region or datacenter identifier (e.g. "us-east-1")
+
+    Artifact:
+      type: object
+      required: [artifact_type, content]
+      properties:
+        artifact_type:
+          $ref: '#/components/schemas/ArtifactType'
+        content:
+          type: string
+          maxLength: 10240
+          description: Artifact content (max 10 KB). Oversized content is rejected with 400.
+        source:
+          type: string
+          nullable: true
+          maxLength: 200
+          description: Human-readable label for the artifact origin (e.g. "Datadog alert #D-123")
+
+    EvidenceRef:
+      type: object
+      required: [ref_id, source_type, source_id, display_label]
+      description: >
+        Canonical evidence citation used by footnote links in NarrativePanel
+        and Overlay B (EvidenceDeepLinkDrawer).
+      properties:
+        ref_id:
+          type: string
+          format: uuid
+        source_type:
+          type: string
+          description: "e.g. prometheus, github, jira, prior_incident, runbook"
+        source_id:
+          type: string
+          description: Connector-specific identifier (commit SHA, ticket ID, metric name)
+        display_label:
+          type: string
+          description: Text shown in the footnote bar (e.g. "GitHub: a3f9c2d")
+        url:
+          type: string
+          format: uri
+          nullable: true
+          description: Deep-link URL opened by "Open in {Source} →" in Overlay B
+        metadata:
+          type: object
+          description: >
+            Source-specific metadata for Overlay B rendering:
+            - github: { repo, commit_sha, author, date, message, diff_excerpt }
+            - jira: { ticket_id, summary, reporter, created_at }
+            - prometheus: { metric_name, query, value, onset_ts }
+            - prior_incident: { incident_id, title, resolved_at }
+
+    Finding:
+      type: object
+      required: [finding_id, type, description, confidence, domain]
+      properties:
+        finding_id:
+          type: string
+          format: uuid
+        domain:
+          $ref: '#/components/schemas/AgentDomain'
+        type:
+          $ref: '#/components/schemas/FindingType'
+        description:
+          type: string
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        supporting_evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceRef'
+        timeline_ts:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this event occurred on the unified incident timeline
+
+    ConfidenceBreakdown:
+      type: object
+      required: [citation_strength, agent_agreement, memory_match_boost, rejection_penalty]
+      description: Sub-scores shown in the Screen 3 ConfidencePanel breakdown rows
+      properties:
+        citation_strength:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Ratio of claims backed by retrieved evidence vs inferred claims
+        agent_agreement:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Overlap fraction between agent-identified root causes
+        memory_match_boost:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: >
+            Applied when Vector DB semantic search matched a prior incident.
+            Scaled by similarity score. Zero when no match found.
+        rejection_penalty:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: >
+            Accumulates on each HITL rejection cycle. Decays on subsequent replans.
+            Zero on first iteration.
+
+    RootCauseCandidate:
+      type: object
+      required: [candidate_id, description, confidence, is_primary]
+      description: >
+        Shown in Screen 3 RootCauseCandidateList. Sorted descending by confidence.
+        Only the primary (is_primary=true) candidate is expanded by default.
+      properties:
+        candidate_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        is_primary:
+          type: boolean
+          description: True for the highest-confidence candidate (displayed as ● in wireframe)
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceRef'
+
+    RecommendedAction:
+      type: object
+      required: [action_id, description, automation, reversible, risk]
+      description: >
+        Action item shown in Screen 3 RecommendedActionList and Screen 4b
+        ActionChecklist. `action_id` is used in RemediationTrigger.approved_action_ids.
+      properties:
+        action_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+          description: Human-readable label (e.g. "Rollback payments-api to v2.13.9")
+        automation:
+          $ref: '#/components/schemas/ActionAutomation'
+        reversible:
+          type: boolean
+          description: If false, "Irreversible" warning shown in Screen 4b checklist
+        risk:
+          $ref: '#/components/schemas/ActionRisk'
+        estimated_duration_seconds:
+          type: integer
+          nullable: true
+          description: Estimated wall-clock duration for automated actions
+        runbook_ref:
+          type: string
+          nullable: true
+          description: Runbook ID and section (e.g. "PAY-5xx §3.2")
+
+    AgentSummary:
+      type: object
+      required: [domain, summary, finding_count, status]
+      description: Tab header data for Screen 3 AgentEvidenceTabs
+      properties:
+        domain:
+          $ref: '#/components/schemas/AgentDomain'
+        summary:
+          type: string
+          description: One-line agent result summary
+        finding_count:
+          type: integer
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        execution_duration_ms:
+          type: integer
+          nullable: true
+
+    PriorIncidentMatch:
+      type: object
+      required: [incident_id, similarity_score]
+      description: Shown in Screen 3 PriorIncidentMatchBanner
+      properties:
+        incident_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        similarity_score:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+
+    RemediationLogEntry:
+      type: object
+      required: [timestamp, description, status]
+      description: Individual row in Screen 5 RemediationLog
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        description:
+          type: string
+        status:
+          type: string
+          enum: [complete, failed]
+
+    HistoryStats:
+      type: object
+      description: Aggregate stats for Screen 6 StatsSummaryBar (30-day window by default)
+      properties:
+        total_count:
+          type: integer
+          minimum: 0
+        avg_time_to_diagnose_seconds:
+          type: number
+          format: float
+          nullable: true
+          description: Mean time from intake to HITL prompt delivery
+        avg_confidence_score:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0.0
+          maximum: 1.0
+        resolved_pct:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0.0
+          maximum: 100.0
+
+    # ── Request Schemas ───────────────────────────────────────────────────────
+
+    IncidentSubmission:
+      type: object
+      required: [title, severity, scope, time_window, symptoms]
+      description: Request body for POST /api/incidents (Screen 1 form data)
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 200
+          description: Short incident title shown in history table header
+        severity:
+          $ref: '#/components/schemas/Severity'
+        scope:
+          $ref: '#/components/schemas/Scope'
+        time_window:
+          $ref: '#/components/schemas/TimeWindow'
+        symptoms:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: >
+            Free-text description of observed symptoms. Include error messages,
+            affected user segments, and any recent changes you are aware of.
+        artifacts:
+          type: array
+          maxItems: 10
+          default: []
+          items:
+            $ref: '#/components/schemas/Artifact'
+          description: Optional supporting evidence attached in Screen 1 ArtifactList
+
+    HITLDecision:
+      type: object
+      required: [decision, reviewer_id]
+      description: Request body for POST /api/investigations/{task_id}/hitl
+      properties:
+        decision:
+          $ref: '#/components/schemas/HITLDecisionEnum'
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: >
+            Required when decision=REJECTED. Supervisor appends this to
+            incident context before replanning.
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/RejectionCategory'
+          description: >
+            Structured rejection categories for supervisor replanning heuristics.
+            Only used when decision=REJECTED.
+        reviewer_id:
+          type: string
+          description: Authenticated user identity (from JWT `sub` claim)
+
+    RemediationTrigger:
+      type: object
+      required: [approved_action_ids]
+      description: Request body for POST /api/investigations/{task_id}/remediation
+      properties:
+        approved_action_ids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+          description: >
+            Subset of action_ids from EvidenceBundle.recommended_actions to
+            execute. Must reference valid action_ids from the same task_id.
+
+    # ── Response Schemas ──────────────────────────────────────────────────────
+
+    IncidentQueuedResponse:
+      type: object
+      required: [task_id, incident_id, status]
+      description: Returned by POST /api/incidents on success
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: >
+            Subscribe to WS /ws/investigations/{task_id} using this value.
+            Navigate to Screen 2 (Live Progress) with this task_id.
+        incident_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [QUEUED]
+
+    IncidentStateResponse:
+      type: object
+      required: [incident_id, task_id, status, severity, title, created_at]
+      description: Returned by GET /api/incidents/{incident_id}
+      properties:
+        incident_id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/InvestigationStatus'
+        severity:
+          $ref: '#/components/schemas/Severity'
+        title:
+          type: string
+        scope:
+          $ref: '#/components/schemas/Scope'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    IncidentSummary:
+      type: object
+      required: [incident_id, title, severity, status, created_at]
+      description: Lightweight row for Screen 6 IncidentTable
+      properties:
+        incident_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        severity:
+          $ref: '#/components/schemas/Severity'
+        status:
+          $ref: '#/components/schemas/InvestigationStatus'
+        confidence_score:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0.0
+          maximum: 1.0
+          description: Null for in-progress investigations (column hidden in table)
+        scope:
+          $ref: '#/components/schemas/Scope'
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    IncidentHistoryPage:
+      type: object
+      required: [items, page, per_page, total, stats]
+      description: >
+        Paginated response for GET /api/incidents/history (Screen 6).
+        `stats` powers the StatsSummaryBar regardless of filter state.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncidentSummary'
+        page:
+          type: integer
+          minimum: 1
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 50
+        total:
+          type: integer
+          minimum: 0
+          description: Total incidents matching the applied filters (for Pagination)
+        stats:
+          $ref: '#/components/schemas/HistoryStats'
+
+    EvidenceBundle:
+      type: object
+      required:
+        - incident_id
+        - task_id
+        - narrative
+        - confidence_breakdown
+        - root_cause_candidates
+        - recommended_actions
+        - synthesized_at
+      description: |
+        Full RCA output returned to Screen 3 (Evidence Review).
+
+        **Narrative footnotes**: numbered refs `[¹][²][³]` in the `narrative`
+        string correspond to 1-based indices into `evidence_refs`. The frontend
+        renders these as tappable links that open `EvidenceDeepLinkDrawer`.
+
+        **Confidence fallback**: `confidence_score` is null when the LLM is
+        unavailable. Show raw agent findings with a "synthesis unavailable" banner.
+      properties:
+        incident_id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        narrative:
+          type: string
+          description: LLM-generated, citation-tagged diagnostic prose for NarrativePanel
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          nullable: true
+        confidence_breakdown:
+          $ref: '#/components/schemas/ConfidenceBreakdown'
+        per_agent_summaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSummary'
+          description: Tab headers for AgentEvidenceTabs (one per domain)
+        agent_findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Finding'
+          description: All findings from all agents; filter by domain for each tab
+        evidence_refs:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceRef'
+          description: Registry of all citations; resolved by footnote index
+        root_cause_candidates:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RootCauseCandidate'
+          description: >
+            Sorted descending by confidence. First item has is_primary=true.
+            Shown in RootCauseCandidateList; non-primary collapsed by default.
+        recommended_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendedAction'
+          description: >
+            Shown in Screen 3 RecommendedActionList and Screen 4b ActionChecklist.
+            action_ids are referenced in RemediationTrigger.approved_action_ids.
+        prior_incident_matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriorIncidentMatch'
+          description: >
+            Non-empty when Vector DB found similar past incidents.
+            Shown in PriorIncidentMatchBanner if length > 0.
+        synthesized_at:
+          type: string
+          format: date-time
+        iteration:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Replan iteration count. Increments on each HITL rejection cycle.
+
+    HITLResponse:
+      type: object
+      required: [status, next_state, task_id]
+      description: Returned by POST /api/investigations/{task_id}/hitl
+      properties:
+        status:
+          type: string
+          enum: [HITL_RESOLVED]
+        next_state:
+          type: string
+          enum: [REMEDIATION, PLANNING]
+          description: >
+            REMEDIATION → proceed to Screen 4b remediation trigger;
+            PLANNING → navigate back to Screen 2 (replan in progress)
+        task_id:
+          type: string
+          format: uuid
+
+    RemediationResponse:
+      type: object
+      required: [remediation_task_id, status]
+      description: Returned by POST /api/investigations/{task_id}/remediation
+      properties:
+        remediation_task_id:
+          type: string
+          format: uuid
+          description: >
+            Identifies this remediation run. REMEDIATION_COMPLETE WebSocket event
+            will carry matching task context for Screen 5 population.
+        status:
+          type: string
+          enum: [QUEUED]
+
+    InvestigationInProgressResponse:
+      type: object
+      required: [status, task_id]
+      description: Returned by GET /evidence when synthesis is not yet complete
+      properties:
+        status:
+          $ref: '#/components/schemas/InvestigationStatus'
+        task_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          example: "Investigation is still in progress. Subscribe to WebSocket for live updates."
+
+    # ── WebSocket Message Schemas ─────────────────────────────────────────────
+
+    TaskProgressEvent:
+      type: object
+      required: [task_id, incident_id, event_type, timestamp, sequence_num]
+      description: |
+        Server-to-client message emitted over `WS /ws/investigations/{task_id}`.
+        Clients must handle all `event_type` values; silently ignore unknown types
+        (forward-compatibility guarantee).
+
+        **Navigation triggers** (x-ui-navigation-triggers on WSEventType enum):
+        - `SYNTHESIS_COMPLETE` → navigate to Screen 3
+        - `REMEDIATION_COMPLETE` → navigate to Screen 5
+        - `TASK_FAILED` → show error banner
+
+        **Payload shapes by event_type**:
+        | event_type | payload fields |
+        |------------|---------------|
+        | AGENT_STARTED | `{ domain, progress_pct, status_label }` |
+        | AGENT_COMPLETE | `{ domain, duration_ms, finding_count, status }` |
+        | SYNTHESIS_COMPLETE | `{ confidence_score }` |
+        | HITL_REQUESTED | `{ evidence_bundle_url }` |
+        | REMEDIATION_STARTED | `{ action_ids }` |
+        | REMEDIATION_COMPLETE | `{ actions_executed, resolved_at, error_rate_data? }` |
+        | TASK_FAILED | `{ error_code, message }` |
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        incident_id:
+          type: string
+          format: uuid
+        event_type:
+          $ref: '#/components/schemas/WSEventType'
+        agent_domain:
+          $ref: '#/components/schemas/AgentDomain'
+          nullable: true
+          description: Present for AGENT_* event types; null for supervisor-level events
+        payload:
+          type: object
+          description: Event-type-specific payload (see description above)
+        timestamp:
+          type: string
+          format: date-time
+        sequence_num:
+          type: integer
+          minimum: 0
+          description: >
+            Monotonically increasing per task_id. Used for missed-event recovery
+            via WSReplayRequest after reconnect.
+
+    WSReplayRequest:
+      type: object
+      required: [type, sequence_num]
+      description: >
+        Client sends this after WebSocket reconnect to replay missed events.
+        Server replays all events with sequence_num >= the provided value.
+      properties:
+        type:
+          type: string
+          enum: [REPLAY_FROM]
+        sequence_num:
+          type: integer
+          minimum: 0
+
+    WSPong:
+      type: object
+      required: [type]
+      description: Client heartbeat response to server PING (sent every 30 s)
+      properties:
+        type:
+          type: string
+          enum: [PONG]
+
+    # ── Error Response ────────────────────────────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      required: [error_code, message]
+      description: Uniform error envelope for all 4xx/5xx responses
+      properties:
+        error_code:
+          type: string
+          description: Machine-readable error identifier
+          examples:
+            - VALIDATION_ERROR
+            - FORBIDDEN
+            - NOT_FOUND
+            - RATE_LIMITED
+            - INVALID_STATE_TRANSITION
+            - HITL_NOT_APPROVED
+        message:
+          type: string
+          description: Human-readable error description (safe to display in UI)
+        details:
+          type: object
+          nullable: true
+          description: Optional field-level validation details (key = field path, value = error)
+
+  # ── Reusable Responses ──────────────────────────────────────────────────────
+  responses:
+
+    BadRequest:
+      description: Request body failed JSON Schema validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error_code: VALIDATION_ERROR
+            message: "severity must be one of [P1, P2, P3, P4]"
+            details:
+              severity: "must be one of: P1, P2, P3, P4"
+
+    Unauthorized:
+      description: Missing, expired, or invalid JWT
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          example: 'Bearer realm="aura", error="invalid_token"'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error_code: UNAUTHORIZED
+            message: "JWT is missing or has expired"
+
+    Forbidden:
+      description: Valid token but insufficient scope, or cross-tenant access attempt
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error_code: FORBIDDEN
+            message: "Cross-tenant access denied"
+
+    NotFound:
+      description: Resource does not exist or is not accessible to this tenant
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error_code: NOT_FOUND
+            message: "Investigation not found"
+
+    RateLimited:
+      description: >
+        Rate limit exceeded. Retry after the number of seconds indicated by
+        the Retry-After header.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error_code: RATE_LIMITED
+            message: "Incident submission limit exceeded (100 per tenant per minute)"
+
+    UnprocessableEntity:
+      description: Semantic validation error (schema-valid but logically invalid)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            time_window_invalid:
+              value:
+                error_code: VALIDATION_ERROR
+                message: "time_window.end must be after time_window.start"
+            title_too_short:
+              value:
+                error_code: VALIDATION_ERROR
+                message: "title must be at least 5 characters"
