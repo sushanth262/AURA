@@ -1,60 +1,57 @@
 <#
 .SYNOPSIS
-  Build the Expo web bundle (static) and deploy to Azure Static Web Apps (Free tier friendly).
+  Pull the Aura frontend container image from GHCR, extract the static web bundle, deploy to Azure Static Web Apps.
 
 .DESCRIPTION
-  1. Runs npm ci / npm install in aura-frontend (sibling folder under the repo root)
-  2. Runs npx expo export --platform web → output folder (default: dist)
-  3. Deploys with Azure Static Web Apps CLI (swa deploy)
+  1. docker pull <image> (unless -SkipDockerPull)
+  2. docker create + docker cp static files from the nginx stage (default path /usr/share/nginx/html)
+  3. npx @azure/static-web-apps-cli deploy <staging>
 
-  Script lives under aura-deployment/scripts; default AppRoot is <repo>/aura-frontend.
+  Matches aura-deployment/services/frontend/Dockerfile: assets live under /usr/share/nginx/html.
 
-  Target Static Web App (defaults — change params if yours differs):
+  Target Static Web App (defaults - change -StaticSiteResourceId if yours differs):
     /subscriptions/b0111f22-31ef-406d-88af-95034f5c7c1d/resourcegroups/aura/providers/Microsoft.Web/staticSites/Aura
 
-  Deployment always goes to whichever Static Web App issued the deployment token (token is bound to that app).
-
   Token sources (first wins):
-    1. -UseAzureCliForToken  →  az staticwebapp secrets list (needs az login + permission)
+    1. -UseAzureCliForToken -> az staticwebapp secrets list (needs az login + permission)
     2. -DeploymentToken (SecureString)
-    3. Environment: AZURE_STATIC_WEB_APPS_API_TOKEN or SWA_CLI_DEPLOYMENT_TOKEN
-    4. Portal → Static Web App → Overview → Manage deployment token
+    3. AZURE_STATIC_WEB_APPS_API_TOKEN or SWA_CLI_DEPLOYMENT_TOKEN
+
+  Prerequisites: Docker CLI, Node/npm (for npx swa), optional az for token fetch.
+  Private GHCR: docker login ghcr.io before running.
 
 .EXAMPLE
   cd <repo-root>
+  docker login ghcr.io -u YOUR_USER
   .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
 
 .EXAMPLE
-  $env:AZURE_STATIC_WEB_APPS_API_TOKEN = '<token-from-portal>'
-  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1
-
-.EXAMPLE
-  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -DeploymentToken (Read-Host -AsSecureString) -SkipBuild
+  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -ContainerImage 'ghcr.io/sushanth262/aura-frontend:v1.2.3' -UseAzureCliForToken
 #>
 
 [CmdletBinding()]
 param(
-    [string] $AppRoot,
-    [string] $OutputDir = 'dist',
+    [string] $ContainerImage = 'ghcr.io/sushanth262/aura-frontend:latest',
+
+    # Path inside the image where nginx serves static files (Dockerfile COPY --from=builder /app/dist).
+    [string] $StaticFilesPathInImage = '/usr/share/nginx/html',
+
+    [switch] $SkipDockerPull,
+
     [ValidateSet('production', 'preview')]
     [string] $Environment = 'production',
-    [switch] $SkipNpmInstall,
-    [switch] $SkipBuild,
+
     [SecureString] $DeploymentToken,
 
-    # ARM id for the target Static Web App (deployment token is scoped to this app).
     [string] $StaticSiteResourceId = '/subscriptions/b0111f22-31ef-406d-88af-95034f5c7c1d/resourcegroups/aura/providers/Microsoft.Web/staticSites/Aura',
 
-    [switch] $UseAzureCliForToken
+    [switch] $UseAzureCliForToken,
+
+    # Keep extracted files on disk for inspection (default: temp folder removed after deploy).
+    [string] $StagingDirectory
 )
 
 $ErrorActionPreference = 'Stop'
-
-if (-not $PSBoundParameters.ContainsKey('AppRoot') -or [string]::IsNullOrWhiteSpace($AppRoot)) {
-    $deploymentRoot = Split-Path -LiteralPath $PSScriptRoot -Parent
-    $repoRoot = Split-Path -LiteralPath $deploymentRoot -Parent
-    $AppRoot = Join-Path $repoRoot 'aura-frontend'
-}
 
 function Get-PlainToken {
     param([SecureString] $Secure)
@@ -125,13 +122,16 @@ function Get-DeploymentTokenFromAzCli {
     }
 
     if ([string]::IsNullOrWhiteSpace($apiKey)) {
-        Write-Error 'Could not read deployment token from az staticwebapp secrets list. Copy the token from Portal → Static Web App → Overview → Manage deployment token.'
+        Write-Error 'Could not read deployment token from az staticwebapp secrets list. Copy the token from Portal -> Static Web App -> Overview -> Manage deployment token.'
     }
 
     return $apiKey.Trim()
 }
 
-# Resolve subscription / RG / name from resource id when provided
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Write-Error 'Docker CLI not found on PATH. Install Docker Desktop or Docker Engine.'
+}
+
 $ctx = Resolve-StaticSiteFromResourceId -ResourceId $StaticSiteResourceId
 $SubscriptionId = $ctx.SubscriptionId
 $ResourceGroupName = $ctx.ResourceGroupName
@@ -161,52 +161,68 @@ No deployment token found.
 
 Options:
   .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
-    (after az login; reads apiKey for Static Web App '$StaticSiteName' in rg '$ResourceGroupName')
 
 Or set AZURE_STATIC_WEB_APPS_API_TOKEN from:
-  Portal → Static Web App '$StaticSiteName' → Overview → Manage deployment token
+  Portal -> Static Web App '$StaticSiteName' -> Overview -> Manage deployment token
 
 Resource: /subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/staticSites/$StaticSiteName
 "@
 }
 
-if (-not (Test-Path -LiteralPath $AppRoot)) {
-    Write-Error "AppRoot not found: $AppRoot (expected sibling aura-frontend next to aura-deployment, or pass -AppRoot)."
+$ownStaging = $false
+if ([string]::IsNullOrWhiteSpace($StagingDirectory)) {
+    $StagingDirectory = Join-Path $env:TEMP ('aura-swa-deploy-' + [guid]::NewGuid().ToString('N'))
+    $ownStaging = $true
 }
 
-$outPath = Join-Path $AppRoot $OutputDir
-Push-Location $AppRoot
+New-Item -ItemType Directory -Path $StagingDirectory -Force | Out-Null
+
+$cid = $null
 try {
-    if (-not $SkipNpmInstall) {
-        if (Test-Path 'package-lock.json') {
-            npm ci
+    if (-not $SkipDockerPull) {
+        Write-Host "Pulling $ContainerImage ..."
+        docker pull $ContainerImage
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "docker pull failed. For private GHCR images run: docker login ghcr.io"
         }
-        else {
-            npm install
-        }
     }
 
-    if (-not $SkipBuild) {
-        Write-Host 'Exporting static web (Expo)...'
-        npx expo export --platform web
+    Write-Host 'Creating ephemeral container to copy static files...'
+    $cid = docker create $ContainerImage
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($cid)) {
+        Write-Error "docker create failed for image $ContainerImage"
+    }
+    $cid = $cid.Trim()
+
+    $src = "${cid}:${StaticFilesPathInImage}/."
+    Write-Host "docker cp $src -> $StagingDirectory"
+    docker cp $src $StagingDirectory
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "docker cp failed. Check -StaticFilesPathInImage (default matches Aura Dockerfile nginx html path)."
     }
 
-    if (-not (Test-Path -LiteralPath $outPath)) {
-        Write-Error "Output folder missing after export: $outPath`nCheck Expo web output location in app.json / app.config."
+    $indexHtml = Join-Path $StagingDirectory 'index.html'
+    if (-not (Test-Path -LiteralPath $indexHtml)) {
+        Write-Error "No index.html under $StagingDirectory. Image layout may differ from Aura nginx image."
     }
 
-    Write-Host "Deploying to Azure Static Web App '$StaticSiteName' ($Environment) from $outPath ..."
+    Write-Host "Deploying to Azure Static Web App '$StaticSiteName' ($Environment) from $StagingDirectory ..."
 
     $env:SWA_CLI_DEPLOYMENT_TOKEN = $token
     try {
-        npx --yes @azure/static-web-apps-cli deploy $outPath --env $Environment
+        npx --yes '@azure/static-web-apps-cli' deploy $StagingDirectory --env $Environment
     }
     finally {
         Remove-Item Env:SWA_CLI_DEPLOYMENT_TOKEN -ErrorAction SilentlyContinue
     }
 
-    Write-Host "Deploy finished → resource group '$ResourceGroupName', app '$StaticSiteName'."
+    Write-Host "Deploy finished -> resource group '$ResourceGroupName', app '$StaticSiteName'."
 }
 finally {
-    Pop-Location
+    if ($cid) {
+        docker rm $cid 2>&1 | Out-Null
+    }
+    if ($ownStaging) {
+        Remove-Item -LiteralPath $StagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }

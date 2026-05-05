@@ -2,48 +2,42 @@
 
 ## Deploy frontend to Azure Static Web Apps
 
-`deploy-azure-static-web-app.ps1` builds the Expo web app in **`aura-frontend`** (sibling folder at the monorepo root) and deploys with the [Azure Static Web Apps CLI](https://learn.microsoft.com/azure/static-web-apps/).
+`deploy-azure-static-web-app.ps1` pulls the published frontend image from **GHCR**, copies the nginx static root (`/usr/share/nginx/html`, same path as in [`services/frontend/Dockerfile`](../services/frontend/Dockerfile)), and deploys that folder with the [Azure Static Web Apps CLI](https://learn.microsoft.com/azure/static-web-apps/).
 
-Run from the **repository root** (`Aura`, containing both `aura-frontend` and `aura-deployment`):
+Run from anywhere (repo root is convenient):
 
 ```powershell
-cd <path-to-Aura-repo>
+# Private registry: log in first
+docker login ghcr.io -u YOUR_USER
 
-# Option A — deployment token via Azure CLI
 az login
 .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
 
-# Option B — token from the portal (Static Web App → Overview → Manage deployment token)
+# Or set token from Portal -> Static Web App -> Manage deployment token
 $env:AZURE_STATIC_WEB_APPS_API_TOKEN = '<your-deployment-token>'
 .\aura-deployment\scripts\deploy-azure-static-web-app.ps1
-
-# Option B — prompt for token
-.\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -DeploymentToken (Read-Host -AsSecureString)
 ```
 
-You can also `cd aura-deployment` and run `.\scripts\deploy-azure-static-web-app.ps1` (paths resolve the same way).
+From `aura-deployment`: `.\scripts\deploy-azure-static-web-app.ps1`
 
 ### Prerequisites
 
-- Node.js and npm (for the build inside `aura-frontend`)
-- For **`-UseAzureCliForToken`**: [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and permission to read secrets on the target Static Web App
+- **Docker** CLI (pull + create + cp)
+- **Node.js / npm** (for `npx` SWA CLI only; no local Expo build)
+- **`az`** only if you use `-UseAzureCliForToken`
 
-### Target app and overrides
-
-Default Static Web App (override with `-StaticSiteResourceId`):
-
-`/subscriptions/b0111f22-31ef-406d-88af-95034f5c7c1d/resourcegroups/aura/providers/Microsoft.Web/staticSites/Aura`
+### Parameters (high level)
 
 | Parameter | Purpose |
 |-----------|---------|
-| `-AppRoot` | Path to the frontend app (default: `<repo-root>/aura-frontend`) |
-| `-SkipNpmInstall` | Skip `npm ci` / `npm install` |
-| `-SkipBuild` | Skip `expo export` |
-| `-Environment` | `production` (default) or `preview` |
-| `-OutputDir` | Build output folder relative to `AppRoot` (default: `dist`) |
-| `-StaticSiteResourceId` | ARM id used with `-UseAzureCliForToken` |
+| `-ContainerImage` | Image ref (default: `ghcr.io/sushanth262/aura-frontend:latest`) |
+| `-SkipDockerPull` | Use already-pulled local image |
+| `-StaticFilesPathInImage` | Path inside image (default matches Aura Dockerfile) |
+| `-StagingDirectory` | Extract here and keep files; default is temp dir removed after deploy |
+| `-Environment` | `production` or `preview` |
+| `-StaticSiteResourceId` | ARM id for token lookup via `-UseAzureCliForToken` |
 
-Full parameter documentation is in the comment block at the top of `deploy-azure-static-web-app.ps1`.
+See the script header for full help.
 
 ## Local Docker provider
 
