@@ -4,12 +4,12 @@
     "slug": "aura-frontend",
     "version": "0.1.0",
     "orientation": "default",
-    "icon": "./assets/images/icon.png",
+    "icon": "./icons/Aura_logo_cropped.png",
     "scheme": "aura",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./icons/Aura_logo_cropped.png",
       "resizeMode": "contain",
       "backgroundColor": "#1B2B65"
     },
@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./icons/Aura_logo_cropped.png",
         "backgroundColor": "#1B2B65"
       },
       "package": "com.aura.frontend"
@@ -27,7 +27,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./icons/Aura_logo_cropped.png"
     },
     "plugins": [
       "expo-router",
@@ -36,7 +36,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#1B2B65",
-          "image": "./assets/images/splash.png",
+          "image": "./icons/Aura_logo_cropped.png",
           "imageWidth": 200
         }
       ]
