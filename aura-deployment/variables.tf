@@ -21,3 +21,9 @@ variable "repo_root_path" {
   type        = string
   default     = ".."
 }
+
+variable "frontend_rebuild_stamp" {
+  description = "Change this string (e.g. bump a number or use an ISO date) to force rebuild and push of the frontend Docker image even when source hashes are unchanged."
+  type        = string
+  default     = "0"
+}

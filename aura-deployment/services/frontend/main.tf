@@ -37,11 +37,13 @@ module "docker_image" {
   dockerfile_path = abspath("${path.module}/Dockerfile")
 
   build_args = {
-    NODE_ENV = "production"
+    NODE_ENV  = "production"
+    CACHEBUST = var.frontend_rebuild_stamp
   }
 
   rebuild_triggers = {
     aura_frontend_source_hash = local.aura_frontend_source_hash
+    frontend_rebuild_stamp    = var.frontend_rebuild_stamp
   }
 
   source_url    = "https://github.com/sushanth262/Aura"

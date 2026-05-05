@@ -16,7 +16,8 @@ module "registry" {
 module "frontend" {
   source = "./services/frontend"
 
-  image_name   = "${module.registry.image_prefix}/aura-frontend"
-  image_tag    = var.image_tag
-  context_path = abspath(var.repo_root_path)
+  image_name               = "${module.registry.image_prefix}/aura-frontend"
+  image_tag                = var.image_tag
+  context_path             = abspath(var.repo_root_path)
+  frontend_rebuild_stamp   = var.frontend_rebuild_stamp
 }

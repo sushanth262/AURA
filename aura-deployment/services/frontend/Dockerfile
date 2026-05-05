@@ -27,9 +27,12 @@ COPY aura-frontend/ ./
 RUN npm install --ignore-scripts
 
 # Export static web bundle → /app/dist
+# CACHEBUST is passed from Terraform (frontend_rebuild_stamp) so bumping the stamp invalidates
+# this layer even when COPY layers would otherwise hit BuildKit cache unchanged.
 ARG NODE_ENV
+ARG CACHEBUST=
 ENV NODE_ENV=$NODE_ENV
-RUN npx expo export --platform web
+RUN printf '%s\n' "${CACHEBUST:-}" >/tmp/.aura-cachebust && npx expo export --platform web
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2: Serve — nginx static file server

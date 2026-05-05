@@ -5,6 +5,10 @@ ghcr_owner     = "sushanth262"
 image_tag      = "latest"    # override with $(git rev-parse --short HEAD) in CI
 repo_root_path = ".."        # repo root — used as Docker build context for all services
 
+# Bump when you need a fresh GHCR image without changing tracked sources (e.g. after logo tweaks).
+# Value is passed as Docker CACHEBUST so BuildKit reruns `expo export` (same stamp alone used to reuse cache).
+# frontend_rebuild_stamp = "1"
+
 # Set the GitHub token via environment variable to avoid storing it on disk:
 #   export TF_VAR_github_token="ghp_..."
 # github_token = "ghp_..."

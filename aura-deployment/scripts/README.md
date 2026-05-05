@@ -41,7 +41,14 @@ See the script header for full help.
 
 ### Logo or UI looks outdated after deploy
 
-The script deploys **whatever static files are inside the container image**, not your working tree. After changing assets under `aura-frontend/icons/` or branding code, **rebuild and push the frontend image to GHCR** (for example `terraform apply` in `aura-deployment`, or your CI pipeline), then run this script again so `docker pull` gets the new digest. If the UI still looks old, hard-refresh the browser or bypass CDN cache; Static Web Apps can cache aggressively.
+The script deploys **whatever static files are inside the container image**, not your working tree. After changing assets under `aura-frontend/icons/` or branding code, **rebuild and push the frontend image to GHCR** with Terraform (`terraform apply` from `aura-deployment`), then run this script again so `docker pull` gets the new digest.
+
+If GHCR digest stays the same after bumping **`frontend_rebuild_stamp`**, Docker BuildKit was reusing the **`expo export`** layer. The Dockerfile now passes the stamp as **`CACHEBUST`** so that layer reruns; bump the stamp again after pulling latest Terraform/Dockerfile. (Older setups without `CACHEBUST` needed `terraform apply -replace=...` or a no-cache build.)
+
+Alternative without editing vars:  
+`terraform apply -replace=module.frontend.module.docker_image.docker_image.this`
+
+If the UI still looks old after a new digest, hard-refresh the browser; Static Web Apps can cache aggressively.
 
 ## Local Docker provider
 
