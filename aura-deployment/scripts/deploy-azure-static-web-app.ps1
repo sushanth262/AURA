@@ -3,9 +3,11 @@
   Build the Expo web bundle (static) and deploy to Azure Static Web Apps (Free tier friendly).
 
 .DESCRIPTION
-  1. Runs npm ci / npm install in aura-frontend
+  1. Runs npm ci / npm install in aura-frontend (sibling folder under the repo root)
   2. Runs npx expo export --platform web → output folder (default: dist)
   3. Deploys with Azure Static Web Apps CLI (swa deploy)
+
+  Script lives under aura-deployment/scripts; default AppRoot is <repo>/aura-frontend.
 
   Target Static Web App (defaults — change params if yours differs):
     /subscriptions/b0111f22-31ef-406d-88af-95034f5c7c1d/resourcegroups/aura/providers/Microsoft.Web/staticSites/Aura
@@ -19,20 +21,20 @@
     4. Portal → Static Web App → Overview → Manage deployment token
 
 .EXAMPLE
-  az login
-  .\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
+  cd <repo-root>
+  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
 
 .EXAMPLE
   $env:AZURE_STATIC_WEB_APPS_API_TOKEN = '<token-from-portal>'
-  .\deploy-azure-static-web-app.ps1
+  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1
 
 .EXAMPLE
-  .\deploy-azure-static-web-app.ps1 -DeploymentToken (Read-Host -AsSecureString) -SkipBuild
+  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -DeploymentToken (Read-Host -AsSecureString) -SkipBuild
 #>
 
 [CmdletBinding()]
 param(
-    [string] $AppRoot = (Split-Path $PSScriptRoot -Parent),
+    [string] $AppRoot,
     [string] $OutputDir = 'dist',
     [ValidateSet('production', 'preview')]
     [string] $Environment = 'production',
@@ -47,6 +49,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if (-not $PSBoundParameters.ContainsKey('AppRoot') -or [string]::IsNullOrWhiteSpace($AppRoot)) {
+    $deploymentRoot = Split-Path -LiteralPath $PSScriptRoot -Parent
+    $repoRoot = Split-Path -LiteralPath $deploymentRoot -Parent
+    $AppRoot = Join-Path $repoRoot 'aura-frontend'
+}
 
 function Get-PlainToken {
     param([SecureString] $Secure)
@@ -152,7 +160,7 @@ if (-not $token) {
 No deployment token found.
 
 Options:
-  .\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
+  .\aura-deployment\scripts\deploy-azure-static-web-app.ps1 -UseAzureCliForToken
     (after az login; reads apiKey for Static Web App '$StaticSiteName' in rg '$ResourceGroupName')
 
 Or set AZURE_STATIC_WEB_APPS_API_TOKEN from:
@@ -163,7 +171,7 @@ Resource: /subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/provi
 }
 
 if (-not (Test-Path -LiteralPath $AppRoot)) {
-    Write-Error "AppRoot not found: $AppRoot"
+    Write-Error "AppRoot not found: $AppRoot (expected sibling aura-frontend next to aura-deployment, or pass -AppRoot)."
 }
 
 $outPath = Join-Path $AppRoot $OutputDir
