@@ -39,6 +39,10 @@ From `aura-deployment`: `.\scripts\deploy-azure-static-web-app.ps1`
 
 See the script header for full help.
 
+### Logo or UI looks outdated after deploy
+
+The script deploys **whatever static files are inside the container image**, not your working tree. After changing assets under `aura-frontend/icons/` or branding code, **rebuild and push the frontend image to GHCR** (for example `terraform apply` in `aura-deployment`, or your CI pipeline), then run this script again so `docker pull` gets the new digest. If the UI still looks old, hard-refresh the browser or bypass CDN cache; Static Web Apps can cache aggressively.
+
 ## Local Docker provider
 
 See `setup-local-docker-provider.ps1` in this folder for Docker-related setup used by deployment tooling.
