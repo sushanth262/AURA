@@ -1,7 +1,7 @@
 # AURA
 
 <p align="center">
-  <img src="aura-frontend/icons/Aura.png" alt="AURA — AI-driven. Multi-agent. Grounded insights. Diagnose. Correlate. Resolve." width="480" />
+  <img src="aura-frontend/icons/Aura_logo_cropped.png" alt="AURA — AI-driven. Multi-agent. Grounded insights. Diagnose. Correlate. Resolve." width="480" />
 </p>
 
 **Agentic Understanding & Root-cause Analysis**

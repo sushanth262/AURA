@@ -27,11 +27,14 @@ resource "docker_image" "this" {
     }
   }
 
-  # Rebuild whenever the tag changes (CI passes git SHA) or the Dockerfile changes
-  triggers = {
-    image_tag       = var.image_tag
-    dockerfile_hash = filemd5(var.dockerfile_path)
-  }
+  # Rebuild when tag/Dockerfile change, or when rebuild_triggers includes e.g. aura-frontend source hash
+  triggers = merge(
+    {
+      image_tag       = var.image_tag
+      dockerfile_hash = filemd5(var.dockerfile_path)
+    },
+    var.rebuild_triggers,
+  )
 }
 
 # Push the built image to the registry (GHCR)

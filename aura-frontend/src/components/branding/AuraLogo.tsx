@@ -1,8 +1,8 @@
 import React from 'react';
 import { Image, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 
-// Company mark: aura-frontend/icons/Aura.png
-const src = require('../../../icons/Aura.png');
+// Company mark: aura-frontend/icons/Aura_logo_cropped.png
+const src = require('../../../icons/Aura_logo_cropped.png');
 
 type Variant = 'sidebar' | 'navbar';
 

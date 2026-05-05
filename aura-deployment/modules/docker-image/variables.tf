@@ -36,3 +36,9 @@ variable "keep_remotely" {
   type        = bool
   default     = true
 }
+
+variable "rebuild_triggers" {
+  description = "Extra trigger keys that force a new docker_image when changed (e.g. source tree hash)."
+  type        = map(string)
+  default     = {}
+}
