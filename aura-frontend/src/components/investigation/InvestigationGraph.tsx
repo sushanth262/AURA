@@ -1,0 +1,115 @@
+// Non-linear state graph visualization — swimlane style, one column per agent domain
+import React from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Card } from '@/components/ui/Card';
+import { colors } from '@/theme/colors';
+import { radius, spacing } from '@/theme/spacing';
+import { typography } from '@/theme/typography';
+import type { AgentDomain, InvestigationStatus, TaskProgressEvent } from '@/types/api';
+
+interface Props {
+  currentStatus: InvestigationStatus;
+  events:        TaskProgressEvent[];
+}
+
+type Lane = { domain: AgentDomain; label: string; color: string };
+
+const LANES: Lane[] = [
+  { domain: 'supervisor', label: 'Supervisor',       color: colors.brand[500] },
+  { domain: 'telemetry',  label: 'Telemetry / RCA',  color: '#3B82F6' },
+  { domain: 'code',       label: 'Code / Fix',        color: '#8B5CF6' },
+  { domain: 'context',    label: 'Context / Docs',    color: '#10B981' },
+];
+
+const STATUS_PHASE: Partial<Record<InvestigationStatus, string>> = {
+  QUEUED:           'Queued',
+  INTAKE:           'Intake',
+  PLANNING:         'Planning',
+  RETRIEVING:       'Retrieving',
+  SYNTHESIS:        'Synthesizing',
+  HITL_PENDING:     'Awaiting HITL',
+  REPLANNING:       'Replanning',
+  REMEDIATION:      'Remediating',
+  MEMORY_WRITEBACK: 'Writing Memory',
+  COMPLETE:         'Complete',
+  PARTIAL_EVIDENCE: 'Partial',
+  FAILED:           'Failed',
+};
+
+export function InvestigationGraph({ currentStatus, events }: Props) {
+  const phase = STATUS_PHASE[currentStatus] ?? currentStatus;
+
+  return (
+    <Card padding={0}>
+      <View style={styles.header}>
+        <Text style={styles.heading}>Investigation Graph</Text>
+        <View style={[styles.phase, phaseStyle(currentStatus)]}>
+          <Text style={[styles.phaseText, phaseTextStyle(currentStatus)]}>{phase}</Text>
+        </View>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.swimlanes}>
+          {LANES.map((lane) => {
+            const laneEvents = events.filter((e) => e.agent_domain === lane.domain);
+            return (
+              <View key={lane.domain} style={styles.lane}>
+                <View style={[styles.laneHeader, { borderTopColor: lane.color }]}>
+                  <View style={[styles.laneDot, { backgroundColor: lane.color }]} />
+                  <Text style={[styles.laneLabel, { color: lane.color }]}>{lane.label}</Text>
+                </View>
+                {laneEvents.length === 0
+                  ? <Text style={styles.laneEmpty}>—</Text>
+                  : laneEvents.map((e, i) => (
+                    <View key={i} style={styles.node}>
+                      <Text style={styles.nodeType}>{e.event_type.replace(/_/g, ' ')}</Text>
+                      <Text style={styles.nodeTs}>
+                        {new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </Text>
+                    </View>
+                  ))
+                }
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </Card>
+  );
+}
+
+function phaseStyle(status: InvestigationStatus): object {
+  if (status === 'COMPLETE')  return { backgroundColor: colors.status.COMPLETE.bg };
+  if (status === 'FAILED')    return { backgroundColor: colors.status.FAILED.bg };
+  if (status === 'HITL_PENDING') return { backgroundColor: colors.status.HITL_PENDING.bg };
+  return { backgroundColor: colors.brand[50] };
+}
+
+function phaseTextStyle(status: InvestigationStatus): object {
+  if (status === 'COMPLETE')  return { color: colors.status.COMPLETE.text };
+  if (status === 'FAILED')    return { color: colors.status.FAILED.text };
+  if (status === 'HITL_PENDING') return { color: colors.status.HITL_PENDING.text };
+  return { color: colors.brand[500] };
+}
+
+const styles = StyleSheet.create({
+  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing[4], borderBottomWidth: 1, borderBottomColor: colors.border.light },
+  heading:     { ...typography.h3, color: colors.text.primary },
+  phase:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.full },
+  phaseText:   { ...typography.label },
+  swimlanes:   { flexDirection: 'row', padding: spacing[3], gap: spacing[3] },
+  lane:        { minWidth: 160, gap: spacing[2] },
+  laneHeader:  { borderTopWidth: 3, paddingTop: spacing[2], flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing[1] },
+  laneDot:     { width: 8, height: 8, borderRadius: radius.full },
+  laneLabel:   { ...typography.label },
+  laneEmpty:   { ...typography.bodySm, color: colors.text.tertiary, paddingTop: 4 },
+  node: {
+    backgroundColor: colors.neutral[50],
+    borderRadius: radius.sm,
+    padding: spacing[2],
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  nodeType: { ...typography.bodySm, color: colors.text.primary, fontWeight: '600', textTransform: 'capitalize' },
+  nodeTs:   { ...typography.bodySm, color: colors.text.tertiary, marginTop: 2 },
+});

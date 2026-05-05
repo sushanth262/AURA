@@ -1,0 +1,80 @@
+{
+  "name": "aura-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "test": "jest --watchAll=false",
+    "test:watch": "jest --watchAll",
+    "test:coverage": "jest --coverage --watchAll=false",
+    "lint": "eslint . --ext .ts,.tsx",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "~52.0.0",
+    "expo-router": "~4.0.17",
+    "expo-status-bar": "~2.0.1",
+    "expo-constants": "~17.0.3",
+    "expo-linking": "~7.0.0",
+    "expo-secure-store": "~14.0.0",
+    "expo-font": "~13.0.1",
+    "expo-splash-screen": "~0.29.18",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-native": "0.76.7",
+    "react-native-web": "~0.19.13",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-reanimated": "~3.16.1",
+    "react-native-gesture-handler": "~2.21.0",
+    "react-native-svg": "15.9.0",
+    "@tanstack/react-query": "^5.62.16",
+    "zustand": "^5.0.3",
+    "axios": "^1.7.9",
+    "@react-native-async-storage/async-storage": "2.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "typescript": "~5.3.3",
+    "@types/react": "~18.3.12",
+    "jest": "^29.7.0",
+    "jest-expo": "~52.0.0",
+    "@testing-library/react-native": "^12.8.1",
+    "@testing-library/jest-native": "^5.4.3",
+    "@types/jest": "^29.5.14",
+    "msw": "^2.6.8",
+    "eslint": "^8.57.0",
+    "eslint-config-expo": "^8.0.0",
+    "babel-plugin-module-resolver": "^5.0.2"
+  },
+  "overrides": {
+    "ajv": "^8.12.0"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterFramework": [
+      "@testing-library/jest-native/extend-expect"
+    ],
+    "setupFiles": [
+      "./jest.setup.ts"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    },
+    "testMatch": [
+      "**/tests/**/*.test.(ts|tsx)"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.d.ts",
+      "!src/**/index.ts"
+    ]
+  }
+}

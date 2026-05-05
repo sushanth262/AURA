@@ -1,5 +1,9 @@
 # AURA
 
+<p align="center">
+  <img src="aura-frontend/icons/Aura.png" alt="AURA — AI-driven. Multi-agent. Grounded insights. Diagnose. Correlate. Resolve." width="480" />
+</p>
+
 **Agentic Understanding & Root-cause Analysis**
 
 AURA is an AI-driven, multi-agent diagnostic platform that correlates telemetry, source code, and operational context to produce grounded root cause analysis and remediation guidance—built around a supervisor orchestrator, specialized agents, retrieval memory, and security-first data handling.

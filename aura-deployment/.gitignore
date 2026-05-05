@@ -1,0 +1,30 @@
+# Terraform state — never commit
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Terraform working dir
+.terraform/
+
+# Variable files that may contain secrets
+*.tfvars
+!*.tfvars.example
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash log
+crash.log
+crash.*.log
+
+# Machine-specific Terraform CLI config (local Docker provider path, etc.)
+local.terraform.rc
+
+# Downloaded provider mirror (large zips); use local.terraform.rc to point Terraform here
+.terraform-registry-mirror/
+
+# Staged plugins for terraform init -plugin-dir=".terraform-plugins"
+.terraform-plugins/
