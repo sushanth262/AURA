@@ -1,7 +1,5 @@
 # Scripts
 
-Deploying the web frontend to Azure Static Web Apps lives with infrastructure scripts:
+There are no frontend-local deploy scripts here. The web app image is built from **`aura-deployment/services/frontend/Dockerfile`** and pushed to **GHCR**.
 
-**[`aura-deployment/scripts/README.md`](../../aura-deployment/scripts/README.md)** — `deploy-azure-static-web-app.ps1`, prerequisites, and examples.
-
-The script assumes the repo layout `Aura/aura-frontend` next to `Aura/aura-deployment` and builds from `aura-frontend` by default.
+To deploy the published image to **Azure Static Web Apps** (pull container → extract static files → SWA CLI), see **[`aura-deployment/scripts/README.md`](../../aura-deployment/scripts/README.md)** and **`deploy-azure-static-web-app.ps1`** in that folder.

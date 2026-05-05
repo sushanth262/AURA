@@ -8,6 +8,10 @@
 
 AURA is an AI-driven, multi-agent diagnostic platform that correlates telemetry, source code, and operational context to produce grounded root cause analysis and remediation guidance—built around a supervisor orchestrator, specialized agents, retrieval memory, and security-first data handling.
 
+## Deploy web UI (Azure Static Web Apps)
+
+The web frontend is built into the container defined under **`aura-deployment/services/frontend`** (published to **GHCR**). To deploy that bundle to Azure Static Web Apps without a local Expo build, use **`aura-deployment/scripts/deploy-azure-static-web-app.ps1`**: it pulls the image, copies the nginx static root from the container, and runs the SWA CLI. Prerequisites, parameters, and copy-paste examples are in **[`aura-deployment/scripts/README.md`](aura-deployment/scripts/README.md)**.
+
 ## Documentation
 
 | Document | Description |
