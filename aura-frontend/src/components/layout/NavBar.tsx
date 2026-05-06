@@ -18,6 +18,9 @@ export function NavBar() {
         <AuraLogo variant="navbar" />
       </Pressable>
       <View style={styles.right}>
+        <Pressable onPress={() => router.push('/login' as never)} style={styles.btn}>
+          <Text style={styles.btnText}>{userId ? 'Account' : 'Sign in'}</Text>
+        </Pressable>
         <Pressable onPress={() => router.push('/history')} style={styles.btn}>
           <Text style={styles.btnText}>Incident History</Text>
         </Pressable>

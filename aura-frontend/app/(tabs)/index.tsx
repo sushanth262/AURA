@@ -1,5 +1,5 @@
 // Screen 1 — Incident Intake
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
@@ -10,9 +10,18 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { submitIncident } from '@/api/incidents';
 import type { IncidentSubmission } from '@/types/api';
+import { useAuthStore } from '@/store/authStore';
 
 export default function IncidentIntakeScreen() {
   const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const isReady = useAuthStore((s) => s.isReady);
+
+  useEffect(() => {
+    if (isReady && !token) {
+      router.replace('/login' as never);
+    }
+  }, [isReady, token, router]);
 
   const mutation = useMutation({
     mutationFn: (payload: IncidentSubmission) => submitIncident(payload),

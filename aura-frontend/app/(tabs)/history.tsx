@@ -1,6 +1,7 @@
 // Screen 6 — Incident History
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { StatsSummaryBar } from '@/components/history/StatsSummaryBar';
@@ -12,6 +13,7 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { listIncidentHistory } from '@/api/incidents';
 import type { HistoryFilters, IncidentHistoryPage } from '@/types/api';
+import { useAuthStore } from '@/store/authStore';
 
 const EMPTY_STATS: IncidentHistoryPage['stats'] = {
   total_count: 0,
@@ -31,12 +33,22 @@ function emptyHistoryPage(perPage: number): IncidentHistoryPage {
 }
 
 export default function HistoryScreen() {
+  const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const isReady = useAuthStore((s) => s.isReady);
   const [filters, setFilters] = useState<HistoryFilters>({ page: 1, per_page: 20 });
+
+  useEffect(() => {
+    if (isReady && !token) {
+      router.replace('/login' as never);
+    }
+  }, [isReady, token, router]);
 
   const { data, isLoading, isError, isRefetching, refetch } = useQuery({
     queryKey: ['incidents', 'history', filters],
     queryFn:  () => listIncidentHistory(filters),
     placeholderData: (prev) => prev,
+    enabled: isReady && !!token,
   });
 
   const showTableShell = Boolean(data) || isError;

@@ -1,0 +1,58 @@
+# Local stack: four Go services + shared JWT/fixtures from aura-backend.
+# Repo root:  docker compose -f aura-deployment/docker-compose.backend.yml up --build
+#
+# Browser / Expo → http://localhost:8080 (aura-bff-api)
+
+services:
+  aura-worker:
+    build:
+      context: ..
+      dockerfile: aura-deployment/services/worker/Dockerfile
+    environment:
+      HTTP_ADDR: ":8083"
+      WORKER_ENABLED_SOURCES: "grafana,github,jira"
+
+  aura-authz:
+    build:
+      context: ..
+      dockerfile: aura-deployment/services/authz/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      HTTP_ADDR: ":8081"
+      POLICY_VERSION: "stub-v1"
+
+  aura-supervisor:
+    build:
+      context: ..
+      dockerfile: aura-deployment/services/supervisor/Dockerfile
+    depends_on:
+      - aura-worker
+    ports:
+      - "8082:8082"
+    environment:
+      HTTP_ADDR: ":8082"
+      AUTH_DEV_MOCK: "true"
+      AUTH_DEV_JWT_SECRET: "aura-dev-secret-change-me-use-32chars-minimum!!"
+      POLICY_VERSION: "stub-v1"
+      WORKER_URL: "http://aura-worker:8083"
+      WORKER_SOURCES: "grafana,github,jira"
+      INTERNAL_SHARED_SECRET: "aura-internal-demo"
+
+  aura-bff-api:
+    build:
+      context: ..
+      dockerfile: aura-deployment/services/bff/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - aura-authz
+      - aura-supervisor
+    environment:
+      HTTP_ADDR: ":8080"
+      AUTH_DEV_MOCK: "true"
+      AUTH_DEV_JWT_SECRET: "aura-dev-secret-change-me-use-32chars-minimum!!"
+      AUTHZ_URL: "http://aura-authz:8081"
+      SUPERVISOR_URL: "http://aura-supervisor:8082"
+      INTERNAL_SHARED_SECRET: "aura-internal-demo"
+      CORS_ALLOWED_ORIGINS: "http://localhost:8081,http://localhost:19006"

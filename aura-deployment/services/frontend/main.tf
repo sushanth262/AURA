@@ -26,6 +26,17 @@ locals {
     0,
     40,
   ) : "empty"
+
+  frontend_expo_env_hash = substr(sha256("${var.frontend_expo_public_api_base_url}|${var.frontend_expo_public_ws_base_url}"), 0, 40)
+
+  frontend_build_args = merge(
+    {
+      NODE_ENV  = "production"
+      CACHEBUST = var.frontend_rebuild_stamp
+    },
+    var.frontend_expo_public_api_base_url != "" ? { EXPO_PUBLIC_API_BASE_URL = var.frontend_expo_public_api_base_url } : {},
+    var.frontend_expo_public_ws_base_url != "" ? { EXPO_PUBLIC_WS_BASE_URL = var.frontend_expo_public_ws_base_url } : {},
+  )
 }
 
 module "docker_image" {
@@ -36,14 +47,12 @@ module "docker_image" {
   context_path    = var.context_path
   dockerfile_path = abspath("${path.module}/Dockerfile")
 
-  build_args = {
-    NODE_ENV  = "production"
-    CACHEBUST = var.frontend_rebuild_stamp
-  }
+  build_args = local.frontend_build_args
 
   rebuild_triggers = {
     aura_frontend_source_hash = local.aura_frontend_source_hash
     frontend_rebuild_stamp    = var.frontend_rebuild_stamp
+    frontend_expo_env_stamp   = local.frontend_expo_env_hash
   }
 
   source_url    = "https://github.com/sushanth262/Aura"

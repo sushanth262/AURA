@@ -1,0 +1,33 @@
+﻿{
+    "generated_at_utc":  "2026-05-06T03:45:03.5413773Z",
+    "endpoints":  {
+                      "worker_https":  "http://127.0.0.1:30883",
+                      "bff_https":  "http://127.0.0.1:30880",
+                      "authz_https":  "http://127.0.0.1:30881",
+                      "frontend_https":  "http://127.0.0.1:30900",
+                      "supervisor_https":  "http://127.0.0.1:30882"
+                  },
+    "expo_hints":  {
+                       "EXPO_PUBLIC_API_BASE_URL":  "http://127.0.0.1:30880/v1",
+                       "EXPO_PUBLIC_WS_BASE_URL":  "ws://127.0.0.1:30880"
+                   },
+    "package_version":  "local-ui-fix-2",
+    "ghcr_owner":  "sushanth262",
+    "unique_suffix":  "jdoe01",
+    "images":  {
+                   "aura-worker":  "ghcr.io/sushanth262/aura-worker:local-ui-fix-2",
+                   "aura-supervisor":  "ghcr.io/sushanth262/aura-supervisor:local-ui-fix-2",
+                   "aura-authz":  "ghcr.io/sushanth262/aura-authz:local-ui-fix-2",
+                   "aura-bff-api":  "ghcr.io/sushanth262/aura-bff-api:local-ui-fix-2",
+                   "aura-frontend":  "ghcr.io/sushanth262/aura-frontend:local-ui-fix-2"
+               },
+    "terraform_hints":  {
+                            "image_tag":  "local-ui-fix-2",
+                            "frontend_expo_public_api_base_url":  "http://127.0.0.1:30880/v1",
+                            "frontend_expo_public_ws_base_url":  "ws://127.0.0.1:30880"
+                        },
+    "notes":  [
+                  "Backend Web Apps use images listed under images.*",
+                  "Rebuild/push aura-frontend with Terraform using image_tag and frontend_expo_public_* matching terraform_hints before publishing Static Web Apps."
+              ]
+}

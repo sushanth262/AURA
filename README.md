@@ -8,9 +8,10 @@
 
 AURA is an AI-driven, multi-agent diagnostic platform that correlates telemetry, source code, and operational context to produce grounded root cause analysis and remediation guidance—built around a supervisor orchestrator, specialized agents, retrieval memory, and security-first data handling.
 
-## Deploy web UI (Azure Static Web Apps)
+## Deploy
 
-The web frontend is built into the container defined under **`aura-deployment/services/frontend`** (published to **GHCR**). To deploy that bundle to Azure Static Web Apps without a local Expo build, use **`aura-deployment/scripts/deploy-azure-static-web-app.ps1`**: it pulls the image, copies the nginx static root from the container, and runs the SWA CLI. Prerequisites, parameters, and copy-paste examples are in **[`aura-deployment/scripts/README.md`](aura-deployment/scripts/README.md)**.
+- **Backend APIs (four containers):** built via Terraform under **`aura-deployment/`** (`aura-authz`, `aura-bff-api`, `aura-supervisor`, `aura-worker`). Local full stack: **`docker compose -f aura-deployment/docker-compose.backend.yml up --build`** from repo root. Operators’ guide: **`aura-deployment/README.md`** and **`docs/BFF_AUTH_LOGIN.md`** (JWT, ports, env vars).
+- **Web UI (Azure Static Web Apps):** the frontend image is **`aura-deployment/services/frontend`** on **GHCR**. Publish with **`aura-deployment/scripts/deploy-azure-full-release.ps1 -PublishStaticWebApp`** (or **`Publish-AuraAzureStaticWebApp`** in **`deploy-azure-backend-common.ps1`**). Details: **`aura-deployment/scripts/README.md`**.
 
 ## Documentation
 

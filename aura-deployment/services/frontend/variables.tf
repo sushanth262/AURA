@@ -19,3 +19,15 @@ variable "frontend_rebuild_stamp" {
   type        = string
   default     = "0"
 }
+
+variable "frontend_expo_public_api_base_url" {
+  description = "Optional. Passed to expo export as EXPO_PUBLIC_API_BASE_URL (must include /v1 suffix). Leave empty to keep Dockerfile default (localhost)."
+  type        = string
+  default     = ""
+}
+
+variable "frontend_expo_public_ws_base_url" {
+  description = "Optional. Passed as EXPO_PUBLIC_WS_BASE_URL (wss:// for HTTPS BFF sites). Leave empty for Dockerfile default."
+  type        = string
+  default     = ""
+}

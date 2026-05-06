@@ -1,7 +1,7 @@
 // Screen 2 — Live Investigation Progress
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { InvestigationGraph } from '@/components/investigation/InvestigationGraph';
@@ -16,10 +16,37 @@ import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import type { Finding } from '@/types/api';
+import { useAuthStore } from '@/store/authStore';
 
 export default function ProgressScreen() {
-  const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const events     = useInvestigationStore((s) => s.getEvents(taskId));
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const token = useAuthStore((s) => s.token);
+  const isReady = useAuthStore((s) => s.isReady);
+  const params = useLocalSearchParams<{ taskId?: string | string[] }>();
+  const taskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
+  const safeTaskId = taskId ?? '';
+  const events     = useInvestigationStore((s) => s.getEvents(safeTaskId));
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isReady && !token) {
+      router.replace('/login' as never);
+    }
+  }, [isReady, token, router]);
+
+  if (!mounted || !safeTaskId) {
+    return (
+      <ScreenContainer>
+        <View style={styles.center}>
+          <Spinner size="large" />
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   // Derive incident_id from WS events (first event carries it)
   const incidentId = events[0]?.incident_id;
@@ -27,11 +54,11 @@ export default function ProgressScreen() {
   const { data: incident, isLoading } = useQuery({
     queryKey: ['incidents', incidentId],
     queryFn:  () => getIncident(incidentId!),
-    enabled:  !!incidentId,
+    enabled:  !!incidentId && !!token && isReady,
   });
 
   // Open WebSocket and drive store
-  useInvestigationWS(taskId);
+  useInvestigationWS(safeTaskId);
 
   // Extract findings from SYNTHESIS_COMPLETE payload if present
   const synthEvent = events.find((e) => e.event_type === 'SYNTHESIS_COMPLETE');
@@ -43,7 +70,7 @@ export default function ProgressScreen() {
     <ScreenContainer>
       <View style={styles.header}>
         <Text style={styles.title}>Live Investigation</Text>
-        <Text style={styles.taskId}>Task {taskId.slice(-8).toUpperCase()}</Text>
+        <Text style={styles.taskId}>Task {safeTaskId ? safeTaskId.slice(-8).toUpperCase() : 'PENDING'}</Text>
       </View>
 
       {isLoading && !incident ? (

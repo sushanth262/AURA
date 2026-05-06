@@ -11,7 +11,6 @@ const RECONNECT_DELAY_MS = 3_000;
 export function useInvestigationWS(taskId: string) {
   const router       = useRouter();
   const appendEvent  = useInvestigationStore((s) => s.appendEvent);
-  const lastSequence = useInvestigationStore((s) => s.lastSequence[taskId] ?? -1);
 
   const wsRef          = useRef<WebSocket | null>(null);
   const pingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -26,6 +25,7 @@ export function useInvestigationWS(taskId: string) {
   };
 
   const connect = useCallback(async () => {
+    if (!taskId) return;
     if (unmountedRef.current) return;
     const token = await getAuthToken();
     const url   = `${WS_BASE_URL}/ws/investigations/${taskId}?token=${token ?? ''}`;
@@ -34,8 +34,9 @@ export function useInvestigationWS(taskId: string) {
 
     ws.onopen = () => {
       // Replay any missed events after reconnect
-      if (lastSequence >= 0) {
-        const replay: WSReplayRequest = { type: 'REPLAY_FROM', sequence_num: lastSequence + 1 };
+      const currentLastSequence = useInvestigationStore.getState().lastSequence[taskId] ?? -1;
+      if (currentLastSequence >= 0) {
+        const replay: WSReplayRequest = { type: 'REPLAY_FROM', sequence_num: currentLastSequence + 1 };
         ws.send(JSON.stringify(replay));
       }
       schedulePing();
@@ -71,7 +72,7 @@ export function useInvestigationWS(taskId: string) {
     };
 
     ws.onerror = () => ws.close();
-  }, [taskId, lastSequence]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [taskId, appendEvent, router]);
 
   const schedulePing = () => {
     clearTimeout(pingTimerRef.current!);
@@ -82,6 +83,7 @@ export function useInvestigationWS(taskId: string) {
   };
 
   useEffect(() => {
+    if (!taskId) return;
     unmountedRef.current = false;
     connect();
     return () => {

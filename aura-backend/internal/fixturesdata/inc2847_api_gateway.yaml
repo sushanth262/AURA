@@ -1,0 +1,63 @@
+# Derived from docs/WIREFRAMES.md — Screen 2 (INC-2847, API gateway 5xx spike, us-east-1).
+scenario_id: inc2847_api_gateway_spike
+wireframe_ref: "WIREFRAMES.md § Screen 2 — Live Investigation Progress"
+display_title: "API gateway 5xx spike — us-east-1"
+severity: P2
+incident_display_key: INC-2847
+scope:
+  service: payments-api
+  region: us-east-1
+started_hint: "14:32"
+timeline_labels:
+  - "Task claimed by supervisor"
+  - "Graph planned (3 agents)"
+  - "Security scan passed"
+  - "Telemetry — querying…"
+  - "Code — querying…"
+  - "Context — querying…"
+
+# Mock connector payloads (Grafana-style metrics, GitHub commits, Jira issues) — WIREFRAMES Screen 2 narrative.
+source_mocks:
+  grafana:
+    mock: true
+    datasource: prometheus
+    incident_display_key: INC-2847
+    panels:
+      - title: "payments-api — HTTP 5xx rate"
+        query: 'sum(rate(http_server_requests_total{status=~"5..",job="payments-api"}[5m]))'
+        spike_window: "2026-05-03T14:28:00Z .. 2026-05-03T14:42:00Z"
+        peak_ratio_vs_baseline: 4.2
+        notes:
+          - "Spike aligns with gateway rollout window (us-east-1)."
+      - title: "checkout latency p99"
+        query: 'histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{route="/checkout"}[5m])) by (le))'
+        elevated: true
+  github:
+    mock: true
+    repository: payments-api
+    default_branch: main
+    commits:
+      - sha: abc123def456
+        message: "Increase checkout handler timeout; tighten gateway upstream pool"
+        author: "svc-deploy-bot"
+        timestamp: "2026-05-03T14:25:00Z"
+        touched_paths:
+          - "internal/checkout/handlers.go"
+          - "deploy/gateway/upstream.yaml"
+      - sha: "7701bee"
+        message: "Gateway — bump idle timeout for payments upstream"
+        author: "jdoe"
+        timestamp: "2026-05-03T13:58:00Z"
+  jira:
+    mock: true
+    issues:
+      - key: INC-2847
+        type: Incident
+        summary: "API gateway 5xx spike — payments checkout"
+        status: "In Progress"
+        priority: P2
+        assignee: oncall-payments
+        linked_changes:
+          - "CHG-4412 gateway config rollout"
+        comments:
+          - "Symptoms started ~14:30 UTC; correlated with deploy train."

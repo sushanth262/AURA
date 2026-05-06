@@ -9,7 +9,9 @@ locals {
 # Build the image locally using the Docker daemon
 resource "docker_image" "this" {
   name         = local.tagged_name
-  keep_locally = false
+  # Keep local tags to avoid destroy-time conflicts when any container still references
+  # a previous image tag (common during iterative local deploy/debug workflows).
+  keep_locally = true
 
   build {
     # Use Docker Buildx (same as `docker buildx build`) instead of the legacy builder, which often
