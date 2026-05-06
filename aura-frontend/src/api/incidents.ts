@@ -15,7 +15,17 @@ export async function submitIncident(
 }
 
 export async function getIncident(incidentId: string): Promise<IncidentStateResponse> {
-  const { data } = await apiClient.get<IncidentStateResponse>(`/api/incidents/${incidentId}`);
+  const { data } = await apiClient.get<IncidentStateResponse>(
+    `/api/incidents/${encodeURIComponent(incidentId)}`,
+  );
+  return data;
+}
+
+/** Resolved via supervisor task id — survives SPA navigations where ?incident_id is dropped on web. */
+export async function getIncidentByTaskId(taskId: string): Promise<IncidentStateResponse> {
+  const { data } = await apiClient.get<IncidentStateResponse>(
+    `/api/incidents/by-task/${encodeURIComponent(taskId)}`,
+  );
   return data;
 }
 

@@ -26,6 +26,7 @@ const DOMAIN_COLOR: Record<AgentDomain, string> = {
 };
 
 const EVENT_LABEL: Partial<Record<WSEventType, string>> = {
+  TASK_CLAIMED:        'task claimed',
   AGENT_STARTED:       'started',
   AGENT_COMPLETE:      'complete',
   SYNTHESIS_STARTED:   'synthesizing',
@@ -41,7 +42,7 @@ function dot(color: string) {
 
 export function AgentActivityPanel({ events }: Props) {
   const visible = events.filter((e) =>
-    ['AGENT_STARTED', 'AGENT_COMPLETE', 'SYNTHESIS_STARTED', 'SYNTHESIS_COMPLETE',
+    ['TASK_CLAIMED', 'AGENT_STARTED', 'AGENT_COMPLETE', 'SYNTHESIS_STARTED', 'SYNTHESIS_COMPLETE',
      'HITL_REQUESTED', 'REMEDIATION_STARTED', 'TASK_FAILED'].includes(e.event_type),
   );
 
@@ -55,8 +56,11 @@ export function AgentActivityPanel({ events }: Props) {
           const domain = e.agent_domain ?? 'supervisor';
           const color  = DOMAIN_COLOR[domain] ?? colors.brand[500];
           const label  = DOMAIN_LABEL[domain] ?? domain;
-          const verb   = EVENT_LABEL[e.event_type] ?? e.event_type.toLowerCase();
-          const ts     = new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const verb   = EVENT_LABEL[e.event_type] ?? String(e.event_type ?? 'event').toLowerCase();
+          const tsRaw  = e.timestamp ? new Date(e.timestamp) : null;
+          const ts     = tsRaw && !Number.isNaN(tsRaw.getTime())
+            ? tsRaw.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : '—';
           return (
             <View key={i} style={styles.row}>
               {dot(color)}

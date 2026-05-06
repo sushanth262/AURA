@@ -43,8 +43,12 @@ export function useInvestigationWS(taskId: string) {
     };
 
     ws.onmessage = (e) => {
+      // Client heartbeat sends plain-text 'PING' and starts a pong watchdog; any inbound traffic proves the channel is alive.
+      if (pongTimerRef.current) {
+        clearTimeout(pongTimerRef.current);
+        pongTimerRef.current = null;
+      }
       if (e.data === 'PING') {
-        clearTimeout(pongTimerRef.current!);
         const pong: WSPong = { type: 'PONG' };
         ws.send(JSON.stringify(pong));
         schedulePing();

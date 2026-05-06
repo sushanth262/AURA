@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -24,7 +25,8 @@ func toWebSocketBase(httpBase string) string {
 	return "ws://" + strings.TrimPrefix(httpBase, "http://")
 }
 
-// ProxyInvestigationWebSocket upgrades the client connection and relays to aura-supervisor.
+// ProxyInvestigationWebSocket upgrades the browser connection first, then dials aura-supervisor and relays both directions.
+// Dial-before-upgrade can delay or break the client handshake on some stacks.
 func (s *Server) ProxyInvestigationWebSocket(w http.ResponseWriter, r *http.Request, taskID string) {
 	backendBase := toWebSocketBase(s.Cfg.SupervisorURL)
 	target := backendBase + "/ws/investigations/" + url.PathEscape(taskID)
@@ -32,44 +34,39 @@ func (s *Server) ProxyInvestigationWebSocket(w http.ResponseWriter, r *http.Requ
 		target += "?" + raw
 	}
 
+	clientConn, err := wsUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
 	d := websocket.Dialer{}
 	backendConn, resp, err := d.Dial(target, nil)
 	if err != nil {
-		if resp != nil {
-			w.WriteHeader(resp.StatusCode)
-			return
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
 		}
-		http.Error(w, "upstream websocket unavailable", http.StatusBadGateway)
+		_ = clientConn.Close()
 		return
 	}
 
-	clientConn, err := wsUpgrader.Upgrade(w, r, nil)
-	if err != nil {
-		_ = backendConn.Close()
-		return
-	}
-
-	go func() {
-		defer backendConn.Close()
-		defer clientConn.Close()
+	var wg sync.WaitGroup
+	pipe := func(dst, src *websocket.Conn) {
+		defer wg.Done()
 		for {
-			mt, msg, err := clientConn.ReadMessage()
-			if err != nil {
+			mt, msg, readErr := src.ReadMessage()
+			if readErr != nil {
 				return
 			}
-			if err := backendConn.WriteMessage(mt, msg); err != nil {
+			if writeErr := dst.WriteMessage(mt, msg); writeErr != nil {
 				return
 			}
-		}
-	}()
-
-	for {
-		mt, msg, err := backendConn.ReadMessage()
-		if err != nil {
-			break
-		}
-		if err := clientConn.WriteMessage(mt, msg); err != nil {
-			break
 		}
 	}
+
+	wg.Add(2)
+	go pipe(backendConn, clientConn)
+	go pipe(clientConn, backendConn)
+	wg.Wait()
+	_ = backendConn.Close()
+	_ = clientConn.Close()
 }

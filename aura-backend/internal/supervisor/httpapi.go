@@ -57,7 +57,9 @@ func (s *HTTPServer) Router() http.Handler {
 		r.Use(InternalSecretGate(s.Cfg.InternalSharedSecret))
 		r.Post("/incidents", s.handleCreateIncident)
 		r.Get("/incidents/history", s.handleHistory)
+		r.Get("/incidents/task/{taskID}", s.handleGetIncidentByTask)
 		r.Get("/incidents/{incidentID}", s.handleGetIncident)
+		r.Get("/investigations/{taskID}/evidence", s.handleEvidenceBundle)
 	})
 
 	return r
@@ -126,15 +128,30 @@ func (s *HTTPServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-func (s *HTTPServer) handleGetIncident(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "incidentID")
-	inv, ok := s.Store.GetByIncident(id)
+func (s *HTTPServer) handleEvidenceBundle(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "taskID")
+	inv, ok := s.Store.GetByTask(taskID)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "NOT_FOUND", "incident not found")
+		writeErr(w, http.StatusNotFound, "NOT_FOUND", "investigation not found")
+		return
+	}
+	if evidenceStillInProgress(inv.Status) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":  inv.Status,
+			"task_id": inv.TaskID,
+			"message": "Evidence bundle not ready yet — synthesis still running.",
+		})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(IncidentStateResponse{
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(buildEvidenceBundle(inv))
+}
+
+func incidentStateJSON(inv *Investigation) IncidentStateResponse {
+	return IncidentStateResponse{
 		IncidentID: inv.IncidentID,
 		TaskID:     inv.TaskID,
 		Status:     inv.Status,
@@ -143,5 +160,27 @@ func (s *HTTPServer) handleGetIncident(w http.ResponseWriter, r *http.Request) {
 		Scope:      inv.Scope,
 		CreatedAt:  inv.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:  inv.UpdatedAt.UTC().Format(time.RFC3339),
-	})
+	}
+}
+
+func (s *HTTPServer) handleGetIncidentByTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "taskID")
+	inv, ok := s.Store.GetByTask(taskID)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "NOT_FOUND", "incident not found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(incidentStateJSON(inv))
+}
+
+func (s *HTTPServer) handleGetIncident(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "incidentID")
+	inv, ok := s.Store.GetByIncident(id)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "NOT_FOUND", "incident not found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(incidentStateJSON(inv))
 }

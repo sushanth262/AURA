@@ -21,7 +21,7 @@ spec:
       containers:
         - name: aura-worker
           image: {{WORKER_IMAGE}}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8083
           env:

@@ -19,7 +19,7 @@ spec:
       containers:
         - name: aura-bff-api
           image: {{BFF_IMAGE}}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:

@@ -19,7 +19,7 @@ spec:
       containers:
         - name: aura-authz
           image: {{AUTHZ_IMAGE}}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
           env:

@@ -65,7 +65,9 @@ func (s *Server) Router() http.Handler {
 		r.Use(s.requireBearer)
 		r.Post("/incidents", s.authzWrap("incident:create", "POST /v1/api/incidents", s.handleCreateIncident))
 		r.Get("/incidents/history", s.authzWrap("incident:history", "GET /v1/api/incidents/history", s.handleHistory))
+		r.Get("/incidents/by-task/{taskID}", s.authzWrap("incident:read", "GET /v1/api/incidents/by-task/{task}", s.handleGetIncidentByTask))
 		r.Get("/incidents/{incidentID}", s.authzWrap("incident:read", "GET /v1/api/incidents/{id}", s.handleGetIncident))
+		r.Get("/investigations/{taskID}/evidence", s.authzWrap("incident:read", "GET /v1/api/investigations/{task}/evidence", s.handleGetEvidenceBundle))
 	})
 
 	return r
@@ -225,9 +227,21 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	s.forwardSupervisor(w, r, http.MethodGet, path)
 }
 
+func (s *Server) handleGetIncidentByTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "taskID")
+	path := "/internal/v1/incidents/task/" + url.PathEscape(taskID)
+	s.forwardSupervisor(w, r, http.MethodGet, path)
+}
+
 func (s *Server) handleGetIncident(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "incidentID")
 	path := "/internal/v1/incidents/" + url.PathEscape(id)
+	s.forwardSupervisor(w, r, http.MethodGet, path)
+}
+
+func (s *Server) handleGetEvidenceBundle(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "taskID")
+	path := "/internal/v1/investigations/" + url.PathEscape(taskID) + "/evidence"
 	s.forwardSupervisor(w, r, http.MethodGet, path)
 }
 

@@ -19,7 +19,7 @@ spec:
       containers:
         - name: aura-supervisor
           image: {{SUPERVISOR_IMAGE}}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8082
           env:

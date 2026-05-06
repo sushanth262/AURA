@@ -17,6 +17,21 @@ export const handlers = [
     return HttpResponse.json(body, { status: 202 });
   }),
 
+  // GET /api/incidents/by-task/:taskId
+  http.get(`${BASE}/api/incidents/by-task/:taskId`, ({ params }) => {
+    const body: IncidentStateResponse = {
+      incident_id: 'inc-test-001',
+      task_id:     params.taskId as string,
+      status:      'SYNTHESIS',
+      severity:    'P2',
+      title:       'Payment service latency spike',
+      scope:       { service: 'payment-svc', cluster: 'prod-eu', region: 'eu-west-1' },
+      created_at:  new Date().toISOString(),
+      updated_at:  new Date().toISOString(),
+    };
+    return HttpResponse.json(body);
+  }),
+
   // GET /api/incidents/:incidentId
   http.get(`${BASE}/api/incidents/:incidentId`, ({ params }) => {
     const body: IncidentStateResponse = {

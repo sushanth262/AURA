@@ -17,9 +17,11 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router   = useRouter();
-  const userId = useAuthStore((s) => s.userId);
+  const router    = useRouter();
+  const userId    = useAuthStore((s) => s.userId);
+  const token     = useAuthStore((s) => s.token);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const signedIn  = Boolean(token);
 
   return (
     <View style={styles.sidebar}>
@@ -53,21 +55,27 @@ export function Sidebar() {
 
       <View style={styles.footer}>
         <Text style={styles.userHint} numberOfLines={1}>
-          {userId ? userId : 'Not signed in'}
+          {signedIn && userId ? userId : 'Not signed in'}
         </Text>
-        <Pressable
-          onPress={() => router.push('/login' as never)}
-          style={styles.footerBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Sign in"
-        >
-          <Text style={styles.footerBtnLabel}>Sign in</Text>
-        </Pressable>
-        {userId ? (
-          <Pressable onPress={() => clearAuth()} style={styles.footerBtnGhost} accessibilityRole="button">
-            <Text style={styles.footerBtnGhostLabel}>Sign out</Text>
+        {signedIn ? (
+          <Pressable
+            onPress={() => clearAuth()}
+            style={styles.footerBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Text style={styles.footerBtnLabel}>Sign out</Text>
           </Pressable>
-        ) : null}
+        ) : (
+          <Pressable
+            onPress={() => router.push('/login' as never)}
+            style={styles.footerBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in"
+          >
+            <Text style={styles.footerBtnLabel}>Sign in</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -76,7 +84,9 @@ export function Sidebar() {
 const styles = StyleSheet.create({
   sidebar: {
     width:           layout.sidebarWidth,
-    flex:            1,
+    flexGrow:        0,
+    flexShrink:      0,
+    alignSelf:       'stretch',
     backgroundColor: colors.brand[500],
     paddingTop:      spacing[6],
     paddingBottom:   spacing[6],
@@ -111,6 +121,4 @@ const styles = StyleSheet.create({
   userHint:        { ...typography.bodySm, color: 'rgba(255,255,255,0.55)' },
   footerBtn:       { backgroundColor: 'rgba(255,255,255,0.14)', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   footerBtnLabel:  { ...typography.bodySm, color: '#FFFFFF', fontWeight: '600' },
-  footerBtnGhost:  { paddingVertical: 6, alignItems: 'center' },
-  footerBtnGhostLabel: { ...typography.bodySm, color: 'rgba(255,255,255,0.75)' },
 });

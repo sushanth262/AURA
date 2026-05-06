@@ -6,7 +6,7 @@ import type { Severity } from '@/types/api';
 interface Props { severity: Severity; size?: 'sm' | 'md' }
 
 export function SeverityBadge({ severity, size = 'md' }: Props) {
-  const palette = colors.severity[severity];
+  const palette = colors.severity[severity] ?? colors.severity.P3;
   return (
     <View style={[styles.base, { backgroundColor: palette.bg }, size === 'sm' && styles.sm]}>
       <View style={[styles.dot, { backgroundColor: palette.dot }]} />

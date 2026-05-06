@@ -7,7 +7,10 @@ import (
 	"github.com/sushanth262/AURA/aura-backend/internal/config"
 )
 
-// RunMockScenario emits WS timeline aligned with WIREFRAMES.md Screen 2 ordering (stub agents).
+// RunMockScenario emits WS timeline aligned with docs/WIREFRAMES.md § Screen 2 (Live Investigation Progress):
+// intake/plan on supervisor lane, then parallel telemetry/code/context AGENT_* events with connector mocks.
+// Intake events use agent_domain "supervisor" so the swimlanes chart receives lane-filterable rows (omit breaks InvestigationGraph lanes).
+//
 // wf optionally enriches AGENT_COMPLETE steps with aura-worker fixture snapshots (grafana, github, jira).
 func RunMockScenario(cfg config.Config, st *Store, hub *WSClients, inv *Investigation, wf SnapshotFetcher) {
 	if wf == nil {
@@ -47,9 +50,10 @@ func RunMockScenario(cfg config.Config, st *Store, hub *WSClients, inv *Investig
 		}
 
 		st.UpdateStatus(taskID, "INTAKE")
-		emit(80*time.Millisecond, "TASK_CLAIMED", "", map[string]any{"message": idx(0)})
-		emit(120*time.Millisecond, "AGENT_STARTED", "", map[string]any{"message": idx(1)})
-		emit(100*time.Millisecond, "AGENT_COMPLETE", "", map[string]any{"message": idx(2)})
+		// Supervisor lane: TASK_CLAIMED + plan/security analogues (WIREFRAMES timeline bullets 1–3).
+		emit(80*time.Millisecond, "TASK_CLAIMED", "supervisor", map[string]any{"message": idx(0)})
+		emit(120*time.Millisecond, "AGENT_STARTED", "supervisor", map[string]any{"message": idx(1)})
+		emit(100*time.Millisecond, "AGENT_COMPLETE", "supervisor", map[string]any{"message": idx(2)})
 
 		st.UpdateStatus(taskID, "RETRIEVING")
 		emit(150*time.Millisecond, "AGENT_STARTED", "telemetry", map[string]any{"progress_pct": 52, "message": idx(3)})

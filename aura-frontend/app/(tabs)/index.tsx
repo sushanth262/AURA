@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { IncidentForm } from '@/components/incidents/IncidentForm';
+import { Spinner } from '@/components/ui/Spinner';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
@@ -17,18 +18,29 @@ export default function IncidentIntakeScreen() {
   const token = useAuthStore((s) => s.token);
   const isReady = useAuthStore((s) => s.isReady);
 
+  const mutation = useMutation({
+    mutationFn: (payload: IncidentSubmission) => submitIncident(payload),
+    onSuccess: (data) => {
+      router.push({
+        pathname: '/investigations/[taskId]/progress',
+        params:   { taskId: data.task_id },
+      } as never);
+    },
+  });
+
   useEffect(() => {
     if (isReady && !token) {
       router.replace('/login' as never);
     }
   }, [isReady, token, router]);
 
-  const mutation = useMutation({
-    mutationFn: (payload: IncidentSubmission) => submitIncident(payload),
-    onSuccess: (data) => {
-      router.push(`/investigations/${data.task_id}/progress` as never);
-    },
-  });
+  if (!isReady) {
+    return (
+      <ScreenContainer scrollable={false}>
+        <Spinner fullscreen />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>

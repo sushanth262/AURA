@@ -1,6 +1,6 @@
 // Non-linear state graph visualization — swimlane style, one column per agent domain
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
@@ -48,7 +48,11 @@ export function InvestigationGraph({ currentStatus, events }: Props) {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={Platform.OS === 'web' ? styles.swimlaneScrollWeb : undefined}
+      >
         <View style={styles.swimlanes}>
           {LANES.map((lane) => {
             const laneEvents = events.filter((e) => e.agent_domain === lane.domain);
@@ -60,14 +64,19 @@ export function InvestigationGraph({ currentStatus, events }: Props) {
                 </View>
                 {laneEvents.length === 0
                   ? <Text style={styles.laneEmpty}>—</Text>
-                  : laneEvents.map((e, i) => (
-                    <View key={i} style={styles.node}>
-                      <Text style={styles.nodeType}>{e.event_type.replace(/_/g, ' ')}</Text>
-                      <Text style={styles.nodeTs}>
-                        {new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                      </Text>
-                    </View>
-                  ))
+                  : laneEvents.map((e, i) => {
+                    const label = String(e.event_type ?? 'event').replace(/_/g, ' ');
+                    const tsRaw = e.timestamp ? new Date(e.timestamp) : null;
+                    const tsOk = tsRaw && !Number.isNaN(tsRaw.getTime())
+                      ? tsRaw.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                      : '—';
+                    return (
+                      <View key={`${e.sequence_num ?? i}-${label}`} style={styles.node}>
+                        <Text style={styles.nodeType}>{label}</Text>
+                        <Text style={styles.nodeTs}>{tsOk}</Text>
+                      </View>
+                    );
+                  })
                 }
               </View>
             );
@@ -93,6 +102,7 @@ function phaseTextStyle(status: InvestigationStatus): object {
 }
 
 const styles = StyleSheet.create({
+  swimlaneScrollWeb: { flexGrow: 0, minHeight: 200 },
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing[4], borderBottomWidth: 1, borderBottomColor: colors.border.light },
   heading:     { ...typography.h3, color: colors.text.primary },
   phase:       { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.full },
