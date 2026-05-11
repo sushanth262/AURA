@@ -1,5 +1,5 @@
 // Screen 2 — Live Investigation Progress
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -11,11 +11,11 @@ import { IncidentHeader } from '@/components/incidents/IncidentHeader';
 import { Spinner } from '@/components/ui/Spinner';
 import { useInvestigationWS } from '@/hooks/useInvestigationWS';
 import { useInvestigationStore } from '@/store/investigationStore';
-import { getIncidentByTaskId } from '@/api/incidents';
+import { getIncident, getIncidentByTaskId } from '@/api/incidents';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import type { ApiError, Finding } from '@/types/api';
+import type { ApiError, Finding, TaskProgressEvent } from '@/types/api';
 import { useAuthStore } from '@/store/authStore';
 
 /** Web static export sometimes hydrates search params late; derive task id from path / segments. */
@@ -44,7 +44,9 @@ export default function ProgressScreen() {
     || taskIdFromPathname(pathname)
     || taskIdFromSegments(segments as string[])
   ).trim();
-  const events = useInvestigationStore((s) => s.getEvents(safeTaskId));
+  const events = useInvestigationStore(
+    useCallback((s: { getEvents: (id: string) => TaskProgressEvent[] }) => s.getEvents(safeTaskId), [safeTaskId]),
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -58,20 +60,36 @@ export default function ProgressScreen() {
 
   useInvestigationWS(safeTaskId);
 
+  const incidentIdFromWs = String(events[0]?.incident_id ?? '').trim();
+
   const {
-    data: incident,
-    isLoading,
-    isError,
-    error,
-    refetch,
+    data: incidentByTask,
+    isLoading: isTaskLoading,
+    isError: isTaskError,
+    error: taskError,
+    refetch: refetchTask,
   } = useQuery({
     queryKey: ['incidents', 'byTask', safeTaskId],
     queryFn:  () => getIncidentByTaskId(safeTaskId),
     enabled:  Boolean(safeTaskId && token && isReady),
   });
 
-  const loadErr = isError
-    ? String((error as ApiError)?.message ?? 'Could not load incident')
+  const {
+    data: incidentById,
+    isLoading: isIdLoading,
+    isError: isIdError,
+    error: idError,
+    refetch: refetchById,
+  } = useQuery({
+    queryKey: ['incidents', 'byId', incidentIdFromWs],
+    queryFn:  () => getIncident(incidentIdFromWs),
+    enabled:  Boolean(incidentIdFromWs && token && isReady && !incidentByTask),
+  });
+
+  const incident = incidentByTask ?? incidentById;
+  const isLoading = isTaskLoading || (!incidentByTask && isIdLoading);
+  const loadErr = !incident && (isTaskError || isIdError)
+    ? String((taskError as ApiError)?.message ?? (idError as ApiError)?.message ?? 'Could not load incident')
     : null;
 
   const synthEvent = useMemo(
@@ -104,7 +122,14 @@ export default function ProgressScreen() {
           <Text style={styles.errHint}>
             If this is 404, redeploy aura-bff-api and aura-supervisor with the /v1/api/incidents/by-task endpoint.
           </Text>
-          <Pressable onPress={() => refetch()} accessibilityRole="button" accessibilityLabel="Retry loading incident">
+          <Pressable
+            onPress={() => {
+              refetchTask();
+              if (incidentIdFromWs) refetchById();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading incident"
+          >
             <Text style={styles.retry}>Tap to retry</Text>
           </Pressable>
         </View>

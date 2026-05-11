@@ -42,6 +42,34 @@ Shared naming: **`-UniqueSuffix jdoe01`** → `aura-jdoe01-worker`, `aura-jdoe01
 
 Requires **`az login`**, GHCR pull PAT (**`GITHUB_TOKEN`** / **`GHCR_TOKEN`** + **`GHCR_USERNAME`**), and images already in GHCR from Terraform. Details: **[`scripts/README.md`](scripts/README.md)**.
 
+## Local full redeploy (Docker Desktop Kubernetes)
+
+When redeploying locally after image or config changes, tear down conflicting resources first, rebuild images, and redeploy:
+
+```powershell
+# 1. Delete the frontend deployment (or all deployments if multiple conflict)
+kubectl -n aura-jdoe01 delete deployment aura-frontend
+
+# If worker/authz/bff/supervisor also conflict, stop all:
+kubectl -n aura-jdoe01 delete deployment aura-frontend aura-bff-api aura-authz aura-supervisor aura-worker
+
+# 2. Remove all local Docker containers so ports and old images don't conflict
+docker ps -aq | % { docker rm -f $_ }
+
+# 3. Rebuild and push images via Terraform
+cd c:\Users\dsush\source\repos\Aura\aura-deployment
+terraform apply
+
+# 4. Deploy the full release locally
+.\scripts\deploy-azure-full-release.ps1 `
+  -PackageVersion "local-ui-fix-6" `
+  -UniqueSuffix "jdoe01" `
+  -Local `
+  -CorsAllowedOrigins "http://127.0.0.1:30880,http://127.0.0.1:30900,http://localhost:19006"
+```
+
+Adjust **`-PackageVersion`** to match the **`image_tag`** in `terraform.tfvars` and **`-UniqueSuffix`** to your namespace suffix.
+
 ## Deploy web UI to Azure Static Web Apps
 
 Does **not** deploy the Go APIs — it publishes the **static frontend** from **`aura-frontend`** via **`Publish-AuraAzureStaticWebApp`** (invoked by **`deploy-azure-full-release.ps1 -PublishStaticWebApp`**). See **[`scripts/README.md`](scripts/README.md)**.
