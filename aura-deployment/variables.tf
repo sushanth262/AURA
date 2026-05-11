@@ -27,3 +27,21 @@ variable "frontend_rebuild_stamp" {
   type        = string
   default     = "0"
 }
+
+variable "frontend_expo_public_api_base_url" {
+  description = "Optional. Bakes EXPO_PUBLIC_API_BASE_URL into the Expo web bundle (include /v1). Must match deployed aura-bff-api public URL for SWA."
+  type        = string
+  default     = ""
+}
+
+variable "frontend_expo_public_ws_base_url" {
+  description = "Optional. EXPO_PUBLIC_WS_BASE_URL for WebSockets (use wss:// when BFF is HTTPS)."
+  type        = string
+  default     = ""
+}
+
+variable "backend_rebuild_stamp" {
+  description = "Bump to force rebuild/push of aura-backend service images without changing sources."
+  type        = string
+  default     = "0"
+}

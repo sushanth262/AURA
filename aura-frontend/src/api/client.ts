@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
-import * as SecureStore from 'expo-secure-store';
 import type { ApiError } from '@/types/api';
+import { getStoredValue } from '@/store/tokenStorage';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/v1';
 
@@ -12,7 +12,7 @@ export const apiClient: AxiosInstance = axios.create({
 
 // ── Auth token injection ──────────────────────────────────────────────────────
 apiClient.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('auth_token');
+  const token = await getStoredValue('auth_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -34,5 +34,5 @@ apiClient.interceptors.response.use(
 export const WS_BASE_URL = process.env.EXPO_PUBLIC_WS_BASE_URL ?? 'ws://localhost:8080';
 
 export async function getAuthToken(): Promise<string | null> {
-  return SecureStore.getItemAsync('auth_token');
+  return getStoredValue('auth_token');
 }

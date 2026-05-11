@@ -29,6 +29,14 @@ RUN npm install --ignore-scripts
 # Export static web bundle → /app/dist
 # CACHEBUST is passed from Terraform (frontend_rebuild_stamp) so bumping the stamp invalidates
 # this layer even when COPY layers would otherwise hit BuildKit cache unchanged.
+#
+# Baked into the static bundle — MUST match the deployed aura-bff-api origin for Azure/production.
+# Override via terraform.tfvars or: docker build --build-arg EXPO_PUBLIC_API_BASE_URL=https://YOUR-BFF.azurewebsites.net/v1 ...
+ARG EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/v1
+ARG EXPO_PUBLIC_WS_BASE_URL=ws://localhost:8080
+ENV EXPO_PUBLIC_API_BASE_URL=$EXPO_PUBLIC_API_BASE_URL
+ENV EXPO_PUBLIC_WS_BASE_URL=$EXPO_PUBLIC_WS_BASE_URL
+
 ARG NODE_ENV
 ARG CACHEBUST=
 ENV NODE_ENV=$NODE_ENV

@@ -6,6 +6,7 @@ import { AuraLogo } from '@/components/branding/AuraLogo';
 import { colors } from '@/theme/colors';
 import { layout, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
+import { useAuthStore } from '@/store/authStore';
 
 interface NavItem { label: string; icon: string; href: string }
 
@@ -16,7 +17,11 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router    = useRouter();
+  const userId    = useAuthStore((s) => s.userId);
+  const token     = useAuthStore((s) => s.token);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const signedIn  = Boolean(token);
 
   return (
     <View style={styles.sidebar}>
@@ -45,6 +50,33 @@ export function Sidebar() {
           );
         })}
       </View>
+
+      <View style={styles.spacer} />
+
+      <View style={styles.footer}>
+        <Text style={styles.userHint} numberOfLines={1}>
+          {signedIn && userId ? userId : 'Not signed in'}
+        </Text>
+        {signedIn ? (
+          <Pressable
+            onPress={() => clearAuth()}
+            style={styles.footerBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Text style={styles.footerBtnLabel}>Sign out</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => router.push('/login' as never)}
+            style={styles.footerBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in"
+          >
+            <Text style={styles.footerBtnLabel}>Sign in</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -52,6 +84,9 @@ export function Sidebar() {
 const styles = StyleSheet.create({
   sidebar: {
     width:           layout.sidebarWidth,
+    flexGrow:        0,
+    flexShrink:      0,
+    alignSelf:       'stretch',
     backgroundColor: colors.brand[500],
     paddingTop:      spacing[6],
     paddingBottom:   spacing[6],
@@ -81,4 +116,9 @@ const styles = StyleSheet.create({
   navIconActive:   { color: '#FFFFFF' },
   navLabel:        { ...typography.navItem, color: 'rgba(255,255,255,0.7)' },
   navLabelActive:  { color: '#FFFFFF', fontWeight: '600' },
+  spacer:          { flex: 1 },
+  footer:          { paddingHorizontal: spacing[3], gap: spacing[2], paddingBottom: spacing[2] },
+  userHint:        { ...typography.bodySm, color: 'rgba(255,255,255,0.55)' },
+  footerBtn:       { backgroundColor: 'rgba(255,255,255,0.14)', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  footerBtnLabel:  { ...typography.bodySm, color: '#FFFFFF', fontWeight: '600' },
 });

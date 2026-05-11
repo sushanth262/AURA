@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import { deleteStoredValue, getStoredValue, setStoredValue } from '@/store/tokenStorage';
 
 interface AuthState {
   token:    string | null;
@@ -18,24 +18,24 @@ export const useAuthStore = create<AuthState>((set) => ({
   isReady:  false,
 
   setToken: async (token, userId, tenantId) => {
-    await SecureStore.setItemAsync('auth_token', token);
-    await SecureStore.setItemAsync('auth_user_id', userId);
-    await SecureStore.setItemAsync('auth_tenant_id', tenantId);
+    await setStoredValue('auth_token', token);
+    await setStoredValue('auth_user_id', userId);
+    await setStoredValue('auth_tenant_id', tenantId);
     set({ token, userId, tenantId });
   },
 
   clearAuth: async () => {
-    await SecureStore.deleteItemAsync('auth_token');
-    await SecureStore.deleteItemAsync('auth_user_id');
-    await SecureStore.deleteItemAsync('auth_tenant_id');
+    await deleteStoredValue('auth_token');
+    await deleteStoredValue('auth_user_id');
+    await deleteStoredValue('auth_tenant_id');
     set({ token: null, userId: null, tenantId: null });
   },
 
   hydrate: async () => {
     const [token, userId, tenantId] = await Promise.all([
-      SecureStore.getItemAsync('auth_token'),
-      SecureStore.getItemAsync('auth_user_id'),
-      SecureStore.getItemAsync('auth_tenant_id'),
+      getStoredValue('auth_token'),
+      getStoredValue('auth_user_id'),
+      getStoredValue('auth_tenant_id'),
     ]);
     set({ token, userId, tenantId, isReady: true });
   },

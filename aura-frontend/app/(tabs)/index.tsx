@@ -1,25 +1,46 @@
 // Screen 1 — Incident Intake
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { IncidentForm } from '@/components/incidents/IncidentForm';
+import { Spinner } from '@/components/ui/Spinner';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { submitIncident } from '@/api/incidents';
 import type { IncidentSubmission } from '@/types/api';
+import { useAuthStore } from '@/store/authStore';
 
 export default function IncidentIntakeScreen() {
   const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const isReady = useAuthStore((s) => s.isReady);
 
   const mutation = useMutation({
     mutationFn: (payload: IncidentSubmission) => submitIncident(payload),
     onSuccess: (data) => {
-      router.push(`/investigations/${data.task_id}/progress` as never);
+      router.push({
+        pathname: '/investigations/[taskId]/progress',
+        params:   { taskId: data.task_id },
+      } as never);
     },
   });
+
+  useEffect(() => {
+    if (isReady && !token) {
+      router.replace('/login' as never);
+    }
+  }, [isReady, token, router]);
+
+  if (!isReady) {
+    return (
+      <ScreenContainer scrollable={false}>
+        <Spinner fullscreen />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>

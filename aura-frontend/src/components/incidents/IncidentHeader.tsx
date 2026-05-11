@@ -13,7 +13,9 @@ interface Props {
 }
 
 export function IncidentHeader({ incident }: Props) {
-  const shortId = `INC-${incident.incident_id.slice(-4).toUpperCase()}`;
+  const shortId = incident.incident_id
+    ? `INC-${incident.incident_id.slice(-4).toUpperCase()}`
+    : 'INC-????';
 
   return (
     <View style={styles.container}>

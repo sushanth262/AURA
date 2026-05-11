@@ -1,5 +1,5 @@
 import React, { type ReactElement } from 'react';
-import { ScrollView, StyleSheet, View, type ViewProps } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View, type ViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { layout, spacing } from '@/theme/spacing';
@@ -40,7 +40,13 @@ export function ScreenContainer({ scrollable = true, padded = true, refreshContr
 }
 
 const styles = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: colors.canvas },
+  safe: {
+    flex:            1,
+    backgroundColor: colors.canvas,
+    ...(Platform.OS === 'web'
+      ? { width: '100%', minHeight: '85vh' as const, flexGrow: 1 }
+      : null),
+  },
   scroll:        { flex: 1, backgroundColor: colors.canvas },
   scrollContent: { flexGrow: 1 },
   inner:         { flex: 1, backgroundColor: colors.canvas },

@@ -167,6 +167,8 @@ export interface IncidentSubmission {
   time_window: TimeWindow;
   symptoms:    string;
   artifacts?:  Artifact[];
+  /** Selects embedded backend fixture (e.g. inc2847_api_gateway). Optional — server defaults. */
+  scenario_key?: string;
 }
 
 export interface HITLDecision {

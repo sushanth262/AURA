@@ -9,8 +9,11 @@ import { typography } from '@/theme/typography';
 import { useAuthStore } from '@/store/authStore';
 
 export function NavBar() {
-  const router = useRouter();
-  const userId = useAuthStore((s) => s.userId);
+  const router    = useRouter();
+  const userId    = useAuthStore((s) => s.userId);
+  const token     = useAuthStore((s) => s.token);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const signedIn  = Boolean(token);
 
   return (
     <View style={styles.bar}>
@@ -18,14 +21,22 @@ export function NavBar() {
         <AuraLogo variant="navbar" />
       </Pressable>
       <View style={styles.right}>
+        <Pressable
+          onPress={() => (signedIn ? clearAuth() : router.push('/login' as never))}
+          style={styles.btn}
+          accessibilityRole="button"
+          accessibilityLabel={signedIn ? 'Sign out' : 'Sign in'}
+        >
+          <Text style={styles.btnText}>{signedIn ? 'Sign out' : 'Sign in'}</Text>
+        </Pressable>
         <Pressable onPress={() => router.push('/history')} style={styles.btn}>
           <Text style={styles.btnText}>Incident History</Text>
         </Pressable>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {userId ? userId[0].toUpperCase() : '?'}
-          </Text>
-        </View>
+        {signedIn && userId ? (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{userId[0].toUpperCase()}</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );

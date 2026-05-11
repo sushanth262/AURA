@@ -17,10 +17,22 @@ import { typography } from '@/theme/typography';
 import type { EvidenceRef } from '@/types/api';
 
 export default function EvidenceScreen() {
-  const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const router     = useRouter();
-  const { bundle, isReady, isLoading } = useEvidenceBundle(taskId);
+  const params = useLocalSearchParams<{ taskId?: string | string[] }>();
+  const raw    = params.taskId;
+  const taskId = Array.isArray(raw) ? raw[0] : raw;
+  const router = useRouter();
+  const { bundle, isLoading } = useEvidenceBundle(taskId ?? '');
   const [selectedRef, setSelectedRef] = useState<EvidenceRef | null>(null);
+
+  if (!taskId) {
+    return (
+      <ScreenContainer>
+        <View style={styles.center}>
+          <Text style={styles.emptyText}>Missing investigation task id.</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   if (isLoading && !bundle) {
     return (
