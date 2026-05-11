@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
+import { BackButton } from '@/components/ui/BackButton';
 import { RejectionForm } from '@/components/hitl/RejectionForm';
 import { useAuthStore } from '@/store/authStore';
 import { submitHITLDecision } from '@/api/hitl';
@@ -33,6 +34,7 @@ export default function RejectScreen() {
 
   return (
     <ScreenContainer>
+      <BackButton label="Back to Evidence" />
       <View style={styles.header}>
         <Text style={styles.title}>Reject Analysis</Text>
         <Text style={styles.subtitle}>

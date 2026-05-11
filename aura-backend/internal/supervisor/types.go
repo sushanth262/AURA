@@ -55,6 +55,7 @@ type Investigation struct {
 	TaskID     string
 	Title      string
 	Severity   string
+	Symptoms   string
 	Scope      map[string]any
 	Status     string
 	CreatedAt  time.Time

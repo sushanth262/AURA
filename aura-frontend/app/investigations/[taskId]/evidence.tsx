@@ -10,6 +10,7 @@ import { RootCauseCandidateList } from '@/components/evidence/RootCauseCandidate
 import { EvidenceDeepLinkDrawer } from '@/components/evidence/EvidenceDeepLinkDrawer';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
+import { BackButton } from '@/components/ui/BackButton';
 import { useEvidenceBundle } from '@/hooks/useEvidenceBundle';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
@@ -57,6 +58,7 @@ export default function EvidenceScreen() {
 
   return (
     <ScreenContainer>
+      <BackButton label="Back to Investigation" />
       <View style={styles.header}>
         <Text style={styles.title}>Evidence Review</Text>
         <Text style={styles.incidentId}>

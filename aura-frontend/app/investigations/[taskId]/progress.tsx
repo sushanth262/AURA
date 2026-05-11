@@ -9,6 +9,8 @@ import { AgentActivityPanel } from '@/components/investigation/AgentActivityPane
 import { TimelinePanel } from '@/components/investigation/TimelinePanel';
 import { IncidentHeader } from '@/components/incidents/IncidentHeader';
 import { Spinner } from '@/components/ui/Spinner';
+import { Button } from '@/components/ui/Button';
+import { BackButton } from '@/components/ui/BackButton';
 import { useInvestigationWS } from '@/hooks/useInvestigationWS';
 import { useInvestigationStore } from '@/store/investigationStore';
 import { getIncident, getIncidentByTaskId } from '@/api/incidents';
@@ -111,6 +113,7 @@ export default function ProgressScreen() {
 
   return (
     <ScreenContainer>
+      <BackButton label="Back" fallbackHref="/" />
       <View style={styles.header}>
         <Text style={styles.title}>Live Investigation</Text>
         <Text style={styles.taskId}>Task {safeTaskId ? safeTaskId.slice(-8).toUpperCase() : 'PENDING'}</Text>
@@ -149,6 +152,16 @@ export default function ProgressScreen() {
       <AgentActivityPanel events={events} />
 
       {findings.length > 0 && <TimelinePanel findings={findings} />}
+
+      {synthEvent && (
+        <Button
+          label="Next: Review Evidence →"
+          variant="primary"
+          size="lg"
+          onPress={() => router.push(`/investigations/${safeTaskId}/evidence` as never)}
+          style={styles.nextBtn}
+        />
+      )}
     </ScreenContainer>
   );
 }
@@ -177,4 +190,5 @@ const styles = StyleSheet.create({
   errText:  { ...typography.body, color: colors.tints.danger.text },
   errHint:  { ...typography.bodySm, color: colors.text.secondary },
   retry:    { ...typography.bodySm, color: colors.brand[500], fontWeight: '600' },
+  nextBtn:  { marginTop: spacing[4], alignSelf: 'stretch' },
 });

@@ -12,15 +12,18 @@ import { typography } from '@/theme/typography';
 import { submitIncident } from '@/api/incidents';
 import type { IncidentSubmission } from '@/types/api';
 import { useAuthStore } from '@/store/authStore';
+import { useIncidentDraftStore } from '@/store/incidentDraftStore';
 
 export default function IncidentIntakeScreen() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const isReady = useAuthStore((s) => s.isReady);
+  const resetDraft = useIncidentDraftStore((s) => s.reset);
 
   const mutation = useMutation({
     mutationFn: (payload: IncidentSubmission) => submitIncident(payload),
     onSuccess: (data) => {
+      resetDraft();
       router.push({
         pathname: '/investigations/[taskId]/progress',
         params:   { taskId: data.task_id },

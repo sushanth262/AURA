@@ -220,10 +220,34 @@ export interface IncidentHistoryPage {
   stats:    HistoryStats;
 }
 
+export interface NarrativeAgentFinding {
+  agent_name:  string;
+  focus:       string;
+  observation: string;
+}
+
+export interface NarrativeConclusion {
+  summary:          string;
+  confidence_level: string;
+  action_item:      string;
+}
+
+export interface NarrativeReport {
+  report_metadata: {
+    service:   string;
+    severity:  string;
+    status:    string;
+    rca_topic: string;
+  };
+  symptoms:       string;
+  agent_findings: NarrativeAgentFinding[];
+  conclusion:     NarrativeConclusion;
+}
+
 export interface EvidenceBundle {
   incident_id:            string;
   task_id:                string;
-  narrative:              string;
+  narrative:              NarrativeReport;
   confidence_score:       number | null;
   confidence_breakdown:   ConfidenceBreakdown;
   per_agent_summaries:    AgentSummary[];
