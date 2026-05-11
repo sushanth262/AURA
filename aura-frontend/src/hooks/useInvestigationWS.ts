@@ -58,9 +58,7 @@ export function useInvestigationWS(taskId: string) {
         const event: TaskProgressEvent = JSON.parse(e.data);
         appendEvent(taskId, event);
 
-        if (event.event_type === 'SYNTHESIS_COMPLETE') {
-          router.replace(`/investigations/${taskId}/evidence`);
-        } else if (event.event_type === 'REMEDIATION_COMPLETE') {
+        if (event.event_type === 'REMEDIATION_COMPLETE') {
           router.replace(`/investigations/${taskId}/resolved`);
         }
       } catch {

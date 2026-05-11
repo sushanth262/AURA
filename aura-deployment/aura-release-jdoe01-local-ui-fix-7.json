@@ -1,5 +1,5 @@
 ﻿{
-    "generated_at_utc":  "2026-05-11T22:02:45.1617449Z",
+    "generated_at_utc":  "2026-05-11T23:11:18.3301629Z",
     "endpoints":  {
                       "worker_https":  "http://127.0.0.1:30883",
                       "bff_https":  "http://127.0.0.1:30880",
@@ -11,18 +11,18 @@
                        "EXPO_PUBLIC_API_BASE_URL":  "http://127.0.0.1:30880/v1",
                        "EXPO_PUBLIC_WS_BASE_URL":  "ws://127.0.0.1:30880"
                    },
-    "package_version":  "local-ui-fix-6",
+    "package_version":  "local-ui-fix-7",
     "ghcr_owner":  "sushanth262",
     "unique_suffix":  "jdoe01",
     "images":  {
-                   "aura-worker":  "ghcr.io/sushanth262/aura-worker:local-ui-fix-6",
-                   "aura-supervisor":  "ghcr.io/sushanth262/aura-supervisor:local-ui-fix-6",
-                   "aura-authz":  "ghcr.io/sushanth262/aura-authz:local-ui-fix-6",
-                   "aura-bff-api":  "ghcr.io/sushanth262/aura-bff-api:local-ui-fix-6",
-                   "aura-frontend":  "ghcr.io/sushanth262/aura-frontend:local-ui-fix-6"
+                   "aura-worker":  "ghcr.io/sushanth262/aura-worker:local-ui-fix-7",
+                   "aura-supervisor":  "ghcr.io/sushanth262/aura-supervisor:local-ui-fix-7",
+                   "aura-authz":  "ghcr.io/sushanth262/aura-authz:local-ui-fix-7",
+                   "aura-bff-api":  "ghcr.io/sushanth262/aura-bff-api:local-ui-fix-7",
+                   "aura-frontend":  "ghcr.io/sushanth262/aura-frontend:local-ui-fix-7"
                },
     "terraform_hints":  {
-                            "image_tag":  "local-ui-fix-6",
+                            "image_tag":  "local-ui-fix-7",
                             "frontend_expo_public_api_base_url":  "http://127.0.0.1:30880/v1",
                             "frontend_expo_public_ws_base_url":  "ws://127.0.0.1:30880"
                         },

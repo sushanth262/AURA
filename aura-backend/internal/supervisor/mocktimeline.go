@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/sushanth262/AURA/aura-backend/internal/config"
@@ -80,12 +81,13 @@ func RunMockScenario(cfg config.Config, st *Store, hub *WSClients, inv *Investig
 		emit(100*time.Millisecond, "AGENT_COMPLETE", "context", ctxPayload)
 
 		st.UpdateStatus(taskID, "SYNTHESIS")
+		svc := scopeService(inv.Scope)
 		findings := []map[string]any{
 			{
 				"finding_id":          "f-metric-1",
 				"domain":              "telemetry",
 				"type":                "METRIC_ANOMALY",
-				"description":         "5xx ratio spike correlated with payments-api rollout window (Grafana-style mock).",
+				"description":         fmt.Sprintf("Error rate spike detected in %s correlated with incident window.", svc),
 				"confidence":          0.82,
 				"supporting_evidence": []map[string]any{},
 				"timeline_ts":         time.Now().UTC().Format(time.RFC3339),
@@ -94,7 +96,7 @@ func RunMockScenario(cfg config.Config, st *Store, hub *WSClients, inv *Investig
 				"finding_id":          "f-code-1",
 				"domain":              "code",
 				"type":                "DEPLOY_CORRELATION",
-				"description":         "Revision abc123def456 touches checkout handlers and gateway upstream config (GitHub mock).",
+				"description":         fmt.Sprintf("Recent deployment to %s identified as potential regression source.", svc),
 				"confidence":          0.74,
 				"supporting_evidence": []map[string]any{},
 				"timeline_ts":         time.Now().UTC().Format(time.RFC3339),
@@ -102,7 +104,7 @@ func RunMockScenario(cfg config.Config, st *Store, hub *WSClients, inv *Investig
 		}
 		emit(200*time.Millisecond, "SYNTHESIS_COMPLETE", "", map[string]any{
 			"findings":          findings,
-			"narrative":         "Mock synthesis aligned with Screen 2 evidence progression.",
+			"narrative":         buildNarrativeStructured(inv),
 			"confidence_score":  0.78,
 			"policy_version":    cfg.PolicyVersion,
 			"wireframe_fixture": inv.Fixture.ScenarioID,

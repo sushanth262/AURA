@@ -7,6 +7,7 @@ import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { ActionChecklist } from '@/components/hitl/ActionChecklist';
 import { ReAuthInput } from '@/components/hitl/ReAuthInput';
 import { Card } from '@/components/ui/Card';
+import { BackButton } from '@/components/ui/BackButton';
 import { useEvidenceBundle } from '@/hooks/useEvidenceBundle';
 import { useAuthStore } from '@/store/authStore';
 import { submitHITLDecision } from '@/api/hitl';
@@ -65,6 +66,7 @@ export default function ApproveScreen() {
 
   return (
     <ScreenContainer>
+      <BackButton label="Back to Evidence" />
       <View style={styles.header}>
         <Text style={styles.title}>Approve & Remediate</Text>
         <Text style={styles.subtitle}>

@@ -1,10 +1,11 @@
 // Screen 1 — Incident Intake form: TrueStat-style inputs and severity chips
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useIncidentDraftStore } from '@/store/incidentDraftStore';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
@@ -30,14 +31,9 @@ const SEV_COLOR: Record<Severity, string> = {
 };
 
 export function IncidentForm({ onSubmit, loading }: Props) {
-  const [title, setTitle]       = useState('');
-  const [severity, setSeverity] = useState<Severity>('P2');
-  const [service, setService]   = useState('');
-  const [cluster, setCluster]   = useState('');
-  const [region, setRegion]     = useState('');
-  const [since, setSince]       = useState('');
-  const [symptoms, setSymptoms] = useState('');
-  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const { title, severity, service, cluster, region, since, symptoms, artifacts } =
+    useIncidentDraftStore((s) => s.draft);
+  const setField = useIncidentDraftStore((s) => s.setField);
 
   const canSubmit = title.trim().length > 0 && service.trim().length > 0 && symptoms.trim().length > 0;
 
@@ -63,15 +59,15 @@ export function IncidentForm({ onSubmit, loading }: Props) {
   }
 
   function addArtifact() {
-    setArtifacts((prev) => [...prev, { artifact_type: 'OTHER', content: '', source: null }]);
+    setField('artifacts', [...artifacts, { artifact_type: 'OTHER', content: '', source: null }]);
   }
 
   function updateArtifact(idx: number, patch: Partial<Artifact>) {
-    setArtifacts((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+    setField('artifacts', artifacts.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   }
 
   function removeArtifact(idx: number) {
-    setArtifacts((prev) => prev.filter((_, i) => i !== idx));
+    setField('artifacts', artifacts.filter((_, i) => i !== idx));
   }
 
   return (
@@ -83,7 +79,7 @@ export function IncidentForm({ onSubmit, loading }: Props) {
           placeholder="e.g. Payment service latency spike"
           placeholderTextColor={colors.text.tertiary}
           value={title}
-          onChangeText={setTitle}
+          onChangeText={(v) => setField('title', v)}
           maxLength={200}
         />
         <Text style={styles.charHint}>{title.length}/200</Text>
@@ -95,7 +91,7 @@ export function IncidentForm({ onSubmit, loading }: Props) {
           {SEVERITIES.map((s) => (
             <Pressable
               key={s}
-              onPress={() => setSeverity(s)}
+              onPress={() => setField('severity', s)}
               style={[
                 styles.sevChip,
                 severity === s && { backgroundColor: SEV_COLOR[s], borderColor: SEV_COLOR[s] },
@@ -116,23 +112,23 @@ export function IncidentForm({ onSubmit, loading }: Props) {
           placeholder="Service name (required)"
           placeholderTextColor={colors.text.tertiary}
           value={service}
-          onChangeText={setService}
+          onChangeText={(v) => setField('service', v)}
         />
         <View style={styles.row2}>
           <TextInput
             style={[styles.input, styles.flex1]}
             placeholder="Cluster (optional)"
             placeholderTextColor={colors.text.tertiary}
-            value={cluster}
-            onChangeText={setCluster}
+          value={cluster}
+          onChangeText={(v) => setField('cluster', v)}
           />
           <View style={{ width: 10 }} />
           <TextInput
             style={[styles.input, styles.flex1]}
             placeholder="Region (optional)"
             placeholderTextColor={colors.text.tertiary}
-            value={region}
-            onChangeText={setRegion}
+          value={region}
+          onChangeText={(v) => setField('region', v)}
           />
         </View>
       </View>
@@ -144,7 +140,7 @@ export function IncidentForm({ onSubmit, loading }: Props) {
           placeholder="ISO-8601 e.g. 2025-05-03T14:00:00Z  (leave blank = 1h ago)"
           placeholderTextColor={colors.text.tertiary}
           value={since}
-          onChangeText={setSince}
+          onChangeText={(v) => setField('since', v)}
         />
       </View>
 
@@ -155,7 +151,7 @@ export function IncidentForm({ onSubmit, loading }: Props) {
           placeholder="Describe what you're observing…"
           placeholderTextColor={colors.text.tertiary}
           value={symptoms}
-          onChangeText={setSymptoms}
+          onChangeText={(v) => setField('symptoms', v)}
           multiline
           maxLength={2000}
           textAlignVertical="top"

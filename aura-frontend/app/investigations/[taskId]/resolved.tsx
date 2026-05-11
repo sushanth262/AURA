@@ -7,6 +7,7 @@ import { RemediationLog } from '@/components/remediation/RemediationLog';
 import { ErrorRateChart } from '@/components/remediation/ErrorRateChart';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { BackButton } from '@/components/ui/BackButton';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { useEvidenceBundle } from '@/hooks/useEvidenceBundle';
 import { useInvestigationStore } from '@/store/investigationStore';
@@ -66,6 +67,7 @@ export default function ResolvedScreen() {
 
   return (
     <ScreenContainer>
+      <BackButton label="Back" fallbackHref="/" />
       <View style={styles.header}>
         <View style={styles.resolvedBadge}>
           <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>

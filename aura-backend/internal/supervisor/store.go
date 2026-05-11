@@ -142,6 +142,7 @@ func NewInvestigationFromSubmission(body IncidentSubmission, fx *FixtureScenario
 		TaskID:     "TSK-" + strings.ToUpper(randomHex(6)),
 		Title:      title,
 		Severity:   sev,
+		Symptoms:   strings.TrimSpace(body.Symptoms),
 		Scope:      sc,
 		Status:     "QUEUED",
 		CreatedAt:  now,

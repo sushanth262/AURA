@@ -52,7 +52,16 @@ export const handlers = [
     const bundle: EvidenceBundle = {
       incident_id:           'inc-test-001',
       task_id:               params.taskId as string,
-      narrative:             'The payment service experienced elevated latency due to a connection pool exhaustion caused by a recent config change (commit abc123). Recommend rolling back.',
+      narrative:             {
+        report_metadata: { service: 'payment-svc', severity: 'P2', status: 'SYNTHESIS', rca_topic: 'Payment service latency spike' },
+        symptoms: 'Elevated p99 latency in payment-svc starting 14:32 UTC.',
+        agent_findings: [
+          { agent_name: 'Telemetry Agent', focus: 'Metrics & Logs', observation: 'Detected 40x spike in p99 latency starting 14:32 UTC. CPU and memory nominal.' },
+          { agent_name: 'Code Agent', focus: 'Deployments & Commits', observation: 'Commit abc123 modified connection pool limits — deployed 14:28 UTC, 4 min before spike.' },
+          { agent_name: 'Context Agent', focus: 'Tickets & Runbooks', observation: 'No related runbook found. Jira INFRA-4521 references similar issue in Jan 2025.' },
+        ],
+        conclusion: { summary: 'Connection pool exhaustion caused by config change in commit abc123.', confidence_level: '87%', action_item: 'Revert commit abc123 and redeploy payment-svc.' },
+      },
       confidence_score:      0.87,
       confidence_breakdown:  { citation_strength: 0.9, agent_agreement: 0.85, memory_match_boost: 0.1, rejection_penalty: 0 },
       per_agent_summaries:   [
