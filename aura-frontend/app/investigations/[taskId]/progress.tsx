@@ -1,5 +1,5 @@
 // Screen 2 — Live Investigation Progress
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -15,8 +15,10 @@ import { getIncident, getIncidentByTaskId } from '@/api/incidents';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import type { ApiError, Finding, TaskProgressEvent } from '@/types/api';
+import type { ApiError, Finding } from '@/types/api';
 import { useAuthStore } from '@/store/authStore';
+
+const EMPTY_EVENTS: never[] = [];
 
 /** Web static export sometimes hydrates search params late; derive task id from path / segments. */
 function taskIdFromPathname(pathname: string | undefined): string {
@@ -44,9 +46,7 @@ export default function ProgressScreen() {
     || taskIdFromPathname(pathname)
     || taskIdFromSegments(segments as string[])
   ).trim();
-  const events = useInvestigationStore(
-    useCallback((s: { getEvents: (id: string) => TaskProgressEvent[] }) => s.getEvents(safeTaskId), [safeTaskId]),
-  );
+  const events = useInvestigationStore((s) => s.events[safeTaskId] ?? EMPTY_EVENTS);
 
   useEffect(() => {
     setMounted(true);
