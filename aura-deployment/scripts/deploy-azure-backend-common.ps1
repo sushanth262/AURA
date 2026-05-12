@@ -4,6 +4,36 @@
 
 $script:AuraDeploymentScriptsDir = $PSScriptRoot
 
+function Invoke-AzWithRetry {
+    param(
+        [Parameter(Mandatory)][scriptblock]$ScriptBlock,
+        [string]$Label = 'az command',
+        [int]$MaxRetries = 5,
+        [int]$DelaySec = 15,
+        [switch]$SuppressOutput
+    )
+    for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+        $oldPref = $ErrorActionPreference
+        $ErrorActionPreference = 'SilentlyContinue'
+        if ($SuppressOutput) {
+            $result = & $ScriptBlock 2>&1 | Out-Null
+        }
+        else {
+            $result = & $ScriptBlock 2>&1
+        }
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $oldPref
+
+        if ($exitCode -eq 0) { return $result }
+
+        if ($attempt -lt $MaxRetries) {
+            Write-Host "  $Label failed (attempt $attempt/$MaxRetries), retrying in ${DelaySec}s..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $DelaySec
+        }
+    }
+    throw "$Label failed after $MaxRetries attempts. The Azure ARM API may be experiencing issues in this region. Try -Location 'eastus'."
+}
+
 function Assert-AzCli {
     if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
         throw 'Azure CLI (az) not found. Install: https://learn.microsoft.com/cli/azure/install-azure-cli-windows'
@@ -26,7 +56,7 @@ function Ensure-ResourceGroup {
     $exists = az group exists --name $Name -o tsv
     if ($exists -eq 'false') {
         Write-Host "Creating resource group '$Name' ($Location)..."
-        az group create --name $Name --location $Location --only-show-errors
+        az group create --name $Name --location $Location --only-show-errors | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "az group create failed" }
     }
 }
@@ -36,10 +66,23 @@ function Ensure-LinuxAppServicePlan {
         [Parameter(Mandatory)][string]$ResourceGroup,
         [Parameter(Mandatory)][string]$PlanName,
         [Parameter(Mandatory)][string]$Location,
-        [string]$Sku = 'FREE'
+        [string]$Sku = 'B1'
     )
-    az appservice plan show --name $PlanName --resource-group $ResourceGroup -o none --only-show-errors 2>$null
-    if ($LASTEXITCODE -eq 0) { return }
+    $oldPref = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    $planJson = az appservice plan show --name $PlanName --resource-group $ResourceGroup -o json --only-show-errors 2>&1
+    $planExists = ($LASTEXITCODE -eq 0)
+    $ErrorActionPreference = $oldPref
+
+    if ($planExists) {
+        $currentSku = ($planJson | ConvertFrom-Json).sku.name
+        if ($currentSku -ne $Sku) {
+            Write-Host "Scaling App Service plan '$PlanName' from $currentSku to $Sku..."
+            az appservice plan update --name $PlanName --resource-group $ResourceGroup --sku $Sku --only-show-errors | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "az appservice plan update (scale to $Sku) failed for '$PlanName'" }
+        }
+        return
+    }
 
     Write-Host "Creating Linux App Service plan '$PlanName' (sku=$Sku)..."
     az appservice plan create `
@@ -48,11 +91,11 @@ function Ensure-LinuxAppServicePlan {
         --location $Location `
         --sku $Sku `
         --is-linux `
-        --only-show-errors
+        --only-show-errors | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw @"
-App Service plan create failed. FREE SKU custom containers are not available in all subscriptions/regions.
-Retry with -AppServiceSku B1 for a low-cost Linux plan that reliably supports containers:
+App Service plan create failed.
+Retry with -AppServiceSku B1 for a low-cost Linux plan that supports containers:
   https://learn.microsoft.com/azure/app-service/quickstart-custom-container
 "@
     }
@@ -63,11 +106,22 @@ function Get-WebAppDefaultHostname {
         [Parameter(Mandatory)][string]$ResourceGroup,
         [Parameter(Mandatory)][string]$AppName
     )
-    $hostName = az webapp show --resource-group $ResourceGroup --name $AppName --query defaultHostName -o tsv --only-show-errors 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($hostName)) {
-        return $null
+    for ($probe = 1; $probe -le 5; $probe++) {
+        $oldPref = $ErrorActionPreference
+        $ErrorActionPreference = 'SilentlyContinue'
+        $raw = az webapp show --resource-group $ResourceGroup --name $AppName --query defaultHostName -o tsv --only-show-errors 2>$null
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $oldPref
+        if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($raw)) {
+            $h = ([string]$raw).Trim()
+            if ($h -match '\.azurewebsites\.net$') { return $h }
+        }
+        if ($probe -lt 5) {
+            Write-Host "  Resolving hostname for '$AppName' (attempt $probe/5)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
+        }
     }
-    return $hostName.Trim()
+    return $null
 }
 
 function Resolve-WebAppHttpsRoot {
@@ -173,47 +227,81 @@ function Deploy-AuraLinuxContainerWebApp {
     Ensure-LinuxAppServicePlan -ResourceGroup $ResourceGroup -PlanName $PlanName -Location $Location -Sku $Sku
 
     $exists = $false
-    az webapp show --resource-group $ResourceGroup --name $AppName -o none --only-show-errors 2>$null
-    if ($LASTEXITCODE -eq 0) { $exists = $true }
+    for ($probe = 1; $probe -le 3; $probe++) {
+        $oldPref = $ErrorActionPreference
+        $ErrorActionPreference = 'SilentlyContinue'
+        az webapp show --resource-group $ResourceGroup --name $AppName -o none --only-show-errors 2>&1 | Out-Null
+        $probeExit = $LASTEXITCODE
+        $ErrorActionPreference = $oldPref
+        if ($probeExit -eq 0) { $exists = $true; break }
+        if ($probe -lt 3) { Start-Sleep -Seconds 5 }
+    }
 
     if (-not $exists) {
         Write-Host "Creating Web App '$AppName' with image $ContainerImage ..."
-        az webapp create `
-            --resource-group $ResourceGroup `
-            --plan $PlanName `
-            --name $AppName `
-            --deployment-container-image-name $ContainerImage `
-            --only-show-errors
-        if ($LASTEXITCODE -ne 0) {
-            throw "az webapp create failed for '$AppName'"
+        $createSuccess = $false
+        for ($attempt = 1; $attempt -le 5; $attempt++) {
+            $oldPrefC = $ErrorActionPreference
+            $ErrorActionPreference = 'SilentlyContinue'
+            az webapp create `
+                --resource-group $ResourceGroup `
+                --plan $PlanName `
+                --name $AppName `
+                --deployment-container-image-name $ContainerImage `
+                --only-show-errors 2>&1 | Out-Null
+            $cExit = $LASTEXITCODE
+            $ErrorActionPreference = $oldPrefC
+
+            if ($cExit -eq 0) { $createSuccess = $true; break }
+
+            # Server may have created the app despite connection reset
+            Start-Sleep -Seconds 5
+            $oldPrefV = $ErrorActionPreference
+            $ErrorActionPreference = 'SilentlyContinue'
+            az webapp show --resource-group $ResourceGroup --name $AppName -o none --only-show-errors 2>&1 | Out-Null
+            $nowExists = ($LASTEXITCODE -eq 0)
+            $ErrorActionPreference = $oldPrefV
+            if ($nowExists) {
+                Write-Host "  Web App '$AppName' exists (created server-side despite connection error)."
+                $createSuccess = $true
+                break
+            }
+
+            if ($attempt -lt 5) {
+                Write-Host "  az webapp create ($AppName) attempt $attempt/5 failed, retrying in 15s..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 15
+            }
+        }
+        if (-not $createSuccess) {
+            throw "az webapp create failed for '$AppName' after 5 attempts."
         }
     }
     else {
         Write-Host "Updating container image for existing Web App '$AppName' ..."
     }
 
-    az webapp config container set `
-        --resource-group $ResourceGroup `
-        --name $AppName `
-        --docker-custom-image-name $ContainerImage `
-        --docker-registry-server-url https://ghcr.io `
-        --docker-registry-server-user $GhcrUser `
-        --docker-registry-server-password $GhcrToken `
-        --only-show-errors
-    if ($LASTEXITCODE -ne 0) {
-        throw "az webapp config container set failed for '$AppName'"
+    # Set container image via linux-fx-version (avoids the flaky az webapp config container set)
+    $linuxFx = "DOCKER|$ContainerImage"
+    Invoke-AzWithRetry -Label "az webapp config set ($AppName)" -SuppressOutput -ScriptBlock {
+        az webapp config set `
+            --resource-group $ResourceGroup `
+            --name $AppName `
+            --linux-fx-version $linuxFx `
+            --only-show-errors
     }
 
-    # Always-on not available on FREE; WEBSITES_PORT tells Azure which container port to route.
+    # Registry creds + app settings in a single call
     $pairs = @(
         "WEBSITES_PORT=$WebSitesPort",
-        "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false"
+        "WEBSITES_ENABLE_APP_SERVICE_STORAGE=false",
+        "DOCKER_REGISTRY_SERVER_URL=https://ghcr.io",
+        "DOCKER_REGISTRY_SERVER_USERNAME=$GhcrUser",
+        "DOCKER_REGISTRY_SERVER_PASSWORD=$GhcrToken"
     )
     foreach ($k in $ExtraAppSettings.Keys) {
         $pairs += "$($k)=$($ExtraAppSettings[$k])"
     }
 
-    # Avoid `@pairs` splat ambiguity — az expects multiple KEY=VAL tokens after --settings.
     $azSettingsArgs = @(
         'webapp', 'config', 'appsettings', 'set',
         '--resource-group', $ResourceGroup,
@@ -221,15 +309,13 @@ function Deploy-AuraLinuxContainerWebApp {
         '--only-show-errors',
         '--settings'
     ) + $pairs
-    & az @azSettingsArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "az webapp config appsettings set failed for '$AppName'"
+    Invoke-AzWithRetry -Label "az webapp appsettings ($AppName)" -SuppressOutput -ScriptBlock {
+        & az @azSettingsArgs
     }
 
     Write-Host "Restarting '$AppName'..."
-    az webapp restart --resource-group $ResourceGroup --name $AppName --only-show-errors
-    if ($LASTEXITCODE -ne 0) {
-        throw "az webapp restart failed for '$AppName'"
+    Invoke-AzWithRetry -Label "az webapp restart ($AppName)" -SuppressOutput -ScriptBlock {
+        az webapp restart --resource-group $ResourceGroup --name $AppName --only-show-errors
     }
 
     $fqdn = Get-WebAppDefaultHostname -ResourceGroup $ResourceGroup -AppName $AppName

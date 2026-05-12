@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-frontend
+  namespace: {{NAMESPACE}}
+  labels:
+    app: aura-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aura-frontend
+  template:
+    metadata:
+      labels:
+        app: aura-frontend
+    spec:
+{{IMAGE_PULL_SECRETS}}
+      containers:
+        - name: aura-frontend
+          image: {{FRONTEND_IMAGE}}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-frontend
+  namespace: {{NAMESPACE}}
+spec:
+  type: LoadBalancer
+  selector:
+    app: aura-frontend
+  ports:
+    - port: 80
+      targetPort: 80

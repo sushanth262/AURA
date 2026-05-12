@@ -25,10 +25,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$UniqueSuffix,
-    [string]$ResourceGroupName = 'aura-rg',
-    [string]$Location = 'eastus',
+    [string]$ResourceGroupName = 'aura',
+    [string]$Location = 'centralus',
     [string]$SharedPlanName = 'aura-free-plan',
-    [string]$AppServiceSku = 'FREE',
+    [string]$AppServiceSku = 'B1',
     [string]$GhcrOwner = 'sushanth262',
     [string]$PackageVersion,
     [string]$ImageTag,
@@ -39,7 +39,7 @@ param(
     [string]$SupervisorHttpsRoot,
     [string]$AuthDevJwtSecret = 'aura-dev-secret-change-me-use-32chars-minimum!!',
     [string]$InternalSharedSecret = 'aura-internal-demo',
-    [string]$CorsAllowedOrigins = 'http://localhost:8081,http://localhost:19006',
+    [string]$CorsAllowedOrigins = 'https://calm-stone-06e76f010.7.azurestaticapps.net,http://localhost:8081,http://localhost:19006',
     [switch]$SkipDependencyChecks,
     [switch]$SkipHealthWait,
     [string]$SummaryOutPath,

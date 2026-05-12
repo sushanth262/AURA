@@ -1,0 +1,115 @@
+name: Deploy to Azure VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'GHCR image tag (e.g. local-ui-fix-8, latest)'
+        required: true
+        default: 'local-ui-fix-8'
+      skip_docker_install:
+        description: 'Skip Docker installation (already installed)'
+        type: boolean
+        default: false
+
+env:
+  VM_IP: ${{ secrets.VM_PUBLIC_IP }}
+  SSH_USER: azureuser
+  GHCR_OWNER: sushanth262
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy services to VM
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare docker-compose.yml
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          VM_IP="${{ secrets.VM_PUBLIC_IP }}"
+
+          sed -e "s|{{WORKER_IMAGE}}|ghcr.io/$GHCR_OWNER/aura-worker:$TAG|g" \
+              -e "s|{{SUPERVISOR_IMAGE}}|ghcr.io/$GHCR_OWNER/aura-supervisor:$TAG|g" \
+              -e "s|{{AUTHZ_IMAGE}}|ghcr.io/$GHCR_OWNER/aura-authz:$TAG|g" \
+              -e "s|{{BFF_IMAGE}}|ghcr.io/$GHCR_OWNER/aura-bff-api:$TAG|g" \
+              -e "s|{{FRONTEND_IMAGE}}|ghcr.io/$GHCR_OWNER/aura-frontend:$TAG|g" \
+              -e "s|{{AUTH_DEV_JWT_SECRET}}|${{ secrets.AUTH_DEV_JWT_SECRET }}|g" \
+              -e "s|{{INTERNAL_SHARED_SECRET}}|${{ secrets.INTERNAL_SHARED_SECRET }}|g" \
+              -e "s|{{CORS_ALLOWED_ORIGINS}}|http://$VM_IP,https://calm-stone-06e76f010.7.azurestaticapps.net,http://localhost:8081|g" \
+              aura-deployment/docker-compose.vm.yml > docker-compose.yml
+
+          echo "--- Generated docker-compose.yml ---"
+          cat docker-compose.yml
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VM_PUBLIC_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Install Docker on VM
+        if: ${{ github.event.inputs.skip_docker_install != 'true' }}
+        run: |
+          ssh $SSH_USER@$VM_IP << 'INSTALL_EOF'
+          set -e
+          if ! command -v docker >/dev/null 2>&1; then
+            echo ">>> Installing Docker..."
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ca-certificates curl
+            sudo install -m 0755 -d /etc/apt/keyrings
+            sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+            sudo chmod a+r /etc/apt/keyrings/docker.asc
+            ARCH=$(dpkg --print-architecture)
+            CODENAME=$(. /etc/os-release; echo $VERSION_CODENAME)
+            echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $CODENAME stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+            sudo usermod -aG docker $USER
+            echo ">>> Docker installed."
+          else
+            echo ">>> Docker already installed."
+          fi
+          docker --version
+          docker compose version
+          INSTALL_EOF
+
+      - name: Upload docker-compose.yml
+        run: |
+          scp docker-compose.yml $SSH_USER@$VM_IP:~/docker-compose.yml
+
+      - name: Login to GHCR on VM
+        run: |
+          ssh $SSH_USER@$VM_IP << GHCR_EOF
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GHCR_OWNER --password-stdin
+          GHCR_EOF
+
+      - name: Deploy services
+        run: |
+          ssh $SSH_USER@$VM_IP << 'DEPLOY_EOF'
+          set -e
+          cd ~
+          docker compose pull
+          docker compose up -d --remove-orphans
+          echo ">>> Waiting for services to start..."
+          sleep 15
+          docker compose ps
+          echo ""
+          echo ">>> Health checks:"
+          curl -sf http://localhost:8080/healthz && echo " BFF: OK" || echo " BFF: FAIL"
+          curl -sf http://localhost/health && echo " Frontend: OK" || echo " Frontend: FAIL"
+          DEPLOY_EOF
+
+      - name: Print endpoints
+        run: |
+          echo ""
+          echo "========================================="
+          echo " Deployment complete!"
+          echo "========================================="
+          echo ""
+          echo "  Frontend : http://$VM_IP"
+          echo "  BFF API  : http://$VM_IP:8080/v1"
+          echo "  BFF WS   : ws://$VM_IP:8080"
+          echo ""
