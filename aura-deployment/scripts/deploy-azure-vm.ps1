@@ -175,7 +175,10 @@ Write-Host '--- 3/5 preparing docker-compose ---' -ForegroundColor Cyan
 
 $corsOrigins = $CorsAllowedOrigins
 if ([string]::IsNullOrWhiteSpace($corsOrigins)) {
-    $corsOrigins = "http://$VmPublicIp,https://calm-stone-06e76f010.7.azurestaticapps.net,http://localhost:8081,http://localhost:19006"
+    $vmDnsLabel = 'aura-rca'
+    $vmRegion   = 'northcentralus'
+    $vmFqdn     = "$vmDnsLabel.$vmRegion.cloudapp.azure.com"
+    $corsOrigins = "http://$VmPublicIp,http://$vmFqdn,https://$vmFqdn,https://calm-stone-06e76f010.7.azurestaticapps.net,http://localhost:8081,http://localhost:19006"
 }
 
 $composeSrc = Join-Path (Join-Path $here '..') 'docker-compose.vm.yml'
