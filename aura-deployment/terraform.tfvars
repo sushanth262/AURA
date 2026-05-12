@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars and fill in your values.
+# Never commit terraform.tfvars — it is git-ignored.
+
+ghcr_owner     = "sushanth262"
+image_tag      = "local-ui-fix-8"
+repo_root_path = ".."        # repo root — used as Docker build context for all services
+
+# Bump when you need a fresh GHCR image without changing tracked sources (e.g. after logo tweaks).
+# Value is passed as Docker CACHEBUST so BuildKit reruns `expo export` (same stamp alone used to reuse cache).
+frontend_rebuild_stamp = "6"
+
+# Point the web bundle at your deployed BFF (terraform apply rebuilds frontend when these change):
+# frontend_expo_public_api_base_url = "https://YOUR-BFF.azurewebsites.net/v1"
+# frontend_expo_public_ws_base_url  = "wss://YOUR-BFF.azurewebsites.net"
+
+# Bump to rebuild Go backend images (aura-authz, aura-bff-api, aura-supervisor, aura-worker).
+backend_rebuild_stamp = "5"
+
+# Set the GitHub token via environment variable to avoid storing it on disk:
+#   export TF_VAR_github_token="ghp_..."
+# github_token = "ghp_..."
+
+frontend_expo_public_api_base_url = "http://52.162.205.226/v1"
+frontend_expo_public_ws_base_url  = "ws://52.162.205.226"
