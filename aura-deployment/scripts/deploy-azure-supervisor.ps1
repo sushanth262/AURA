@@ -22,10 +22,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$UniqueSuffix,
-    [string]$ResourceGroupName = 'aura-rg',
-    [string]$Location = 'eastus',
+    [string]$ResourceGroupName = 'aura',
+    [string]$Location = 'centralus',
     [string]$SharedPlanName = 'aura-free-plan',
-    [string]$AppServiceSku = 'FREE',
+    [string]$AppServiceSku = 'B1',
     [string]$GhcrOwner = 'sushanth262',
     [string]$PackageVersion,
     [string]$ImageTag,

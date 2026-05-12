@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-bff-api
+  namespace: {{NAMESPACE}}
+  labels:
+    app: aura-bff-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aura-bff-api
+  template:
+    metadata:
+      labels:
+        app: aura-bff-api
+    spec:
+{{IMAGE_PULL_SECRETS}}
+      containers:
+        - name: aura-bff-api
+          image: {{BFF_IMAGE}}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: HTTP_ADDR
+              value: ":8080"
+            - name: AUTH_DEV_MOCK
+              value: "true"
+            - name: AUTH_DEV_JWT_SECRET
+              value: '{{AUTH_DEV_JWT_SECRET}}'
+            - name: AUTHZ_URL
+              value: "http://aura-authz:8081"
+            - name: SUPERVISOR_URL
+              value: "http://aura-supervisor:8082"
+            - name: INTERNAL_SHARED_SECRET
+              value: '{{INTERNAL_SHARED_SECRET}}'
+            - name: CORS_ALLOWED_ORIGINS
+              value: '{{CORS_ALLOWED_ORIGINS}}'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-bff-api
+  namespace: {{NAMESPACE}}
+spec:
+  type: LoadBalancer
+  selector:
+    app: aura-bff-api
+  ports:
+    - port: 80
+      targetPort: 8080

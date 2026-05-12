@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-supervisor
+  namespace: {{NAMESPACE}}
+  labels:
+    app: aura-supervisor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aura-supervisor
+  template:
+    metadata:
+      labels:
+        app: aura-supervisor
+    spec:
+{{IMAGE_PULL_SECRETS}}
+      containers:
+        - name: aura-supervisor
+          image: {{SUPERVISOR_IMAGE}}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          env:
+            - name: HTTP_ADDR
+              value: ":8082"
+            - name: AUTH_DEV_MOCK
+              value: "true"
+            - name: AUTH_DEV_JWT_SECRET
+              value: '{{AUTH_DEV_JWT_SECRET}}'
+            - name: POLICY_VERSION
+              value: "stub-v1"
+            - name: WORKER_URL
+              value: "http://aura-worker:8083"
+            - name: WORKER_SOURCES
+              value: "grafana,github,jira"
+            - name: INTERNAL_SHARED_SECRET
+              value: '{{INTERNAL_SHARED_SECRET}}'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-supervisor
+  namespace: {{NAMESPACE}}
+spec:
+  type: ClusterIP
+  selector:
+    app: aura-supervisor
+  ports:
+    - port: 8082
+      targetPort: 8082

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-worker
+  namespace: {{NAMESPACE}}
+  labels:
+    app: aura-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aura-worker
+  template:
+    metadata:
+      labels:
+        app: aura-worker
+    spec:
+{{IMAGE_PULL_SECRETS}}
+      containers:
+        - name: aura-worker
+          image: {{WORKER_IMAGE}}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          env:
+            - name: HTTP_ADDR
+              value: ":8083"
+            - name: WORKER_ENABLED_SOURCES
+              value: "grafana,github,jira"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-worker
+  namespace: {{NAMESPACE}}
+spec:
+  type: ClusterIP
+  selector:
+    app: aura-worker
+  ports:
+    - port: 8083
+      targetPort: 8083

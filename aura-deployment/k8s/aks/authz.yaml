@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aura-authz
+  namespace: {{NAMESPACE}}
+  labels:
+    app: aura-authz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aura-authz
+  template:
+    metadata:
+      labels:
+        app: aura-authz
+    spec:
+{{IMAGE_PULL_SECRETS}}
+      containers:
+        - name: aura-authz
+          image: {{AUTHZ_IMAGE}}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+          env:
+            - name: HTTP_ADDR
+              value: ":8081"
+            - name: POLICY_VERSION
+              value: "stub-v1"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aura-authz
+  namespace: {{NAMESPACE}}
+spec:
+  type: ClusterIP
+  selector:
+    app: aura-authz
+  ports:
+    - port: 8081
+      targetPort: 8081
