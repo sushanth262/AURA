@@ -1,26 +1,21 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Upload aura-deployment/nginx-vm-proxy-ssl.conf to the Azure VM and reload host nginx.
+  Upload aura-deployment/nginx-vm-proxy-ssl.conf to the Azure VM and reload nginx.
 
 .DESCRIPTION
-  Base64-encodes the repo SSL vhost file, sends it via az vm run-command, writes to
-  sites-available, symlinks into sites-enabled, runs nginx -t, reloads nginx.
+  Tries host nginx first (/usr/sbin/nginx). If not present, finds a Docker container that
+  publishes port 443, docker cp the config in, and nginx -s reload inside the container.
 
-  If nginx -t fails (duplicate listen/server_name), remove or rename the conflicting file
-  under /etc/nginx/sites-enabled/ on the VM, then re-run.
+  Default path inside the VM/container is /etc/nginx/conf.d/aura-rca-cloudapp.conf.
 
-.PARAMETER SitesAvailablePath
-  Full path on the VM for this vhost file.
-
-.PARAMETER SitesEnabledName
-  Symlink filename under /etc/nginx/sites-enabled/ (not a full path).
+.PARAMETER OutFile
+  Full path for the vhost file on the VM or inside the nginx container.
 #>
 param(
   [string]$ResourceGroup = "auravm",
   [string]$VmName = "aura",
-  [string]$SitesAvailablePath = "/etc/nginx/sites-available/aura-rca-cloudapp",
-  [string]$SitesEnabledName = "aura-rca-cloudapp"
+  [string]$OutFile = "/etc/nginx/conf.d/aura-rca-cloudapp.conf"
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,23 +37,65 @@ $text = [System.IO.File]::ReadAllText($confPath)
 $text = $text -replace "`r`n", "`n" -replace "`r", "`n"
 $confB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($text))
 
-$enabledFull = "/etc/nginx/sites-enabled/$SitesEnabledName"
-
-$remote = @"
+# Verbatim here-string: double single quotes '' emit one ' in the bash script.
+$bash = @'
 set -euo pipefail
-echo '$confB64' | base64 -d | sudo tee $SitesAvailablePath > /dev/null
-sudo chmod 644 $SitesAvailablePath
-sudo ln -sf $SitesAvailablePath $enabledFull
-sudo nginx -t
-sudo systemctl reload nginx
-echo NGINX_OK
-"@
-$remote = $remote -replace "`r`n", "`n" -replace "`r", "`n"
-$remoteB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remote))
+sudo mkdir -p /etc/nginx/conf.d
+OUT="__OUTFILE__"
+TMP=/tmp/aura-rca-cloudapp.conf
+echo "__CONFB64__" | base64 -d > "$TMP"
+chmod 644 "$TMP"
+
+try_host() {
+  if [ ! -x /usr/sbin/nginx ] && ! command -v nginx >/dev/null 2>&1; then
+    return 1
+  fi
+  sudo cp "$TMP" "$OUT"
+  sudo chmod 644 "$OUT"
+  if [ -x /usr/sbin/nginx ]; then
+    sudo /usr/sbin/nginx -t
+    sudo /usr/sbin/nginx -s reload 2>/dev/null || sudo systemctl reload nginx
+  else
+    sudo nginx -t
+    sudo nginx -s reload 2>/dev/null || sudo systemctl reload nginx
+  fi
+  rm -f "$TMP"
+  echo NGINX_OK_HOST
+  return 0
+}
+
+if try_host; then
+  exit 0
+fi
+
+NGINX_C=""
+for n in $(docker ps --format ''{{.Names}}'' 2>/dev/null); do
+  if docker port "$n" 2>/dev/null | grep -qE '(:443->|0\.0\.0\.0:443|\[::\]:443)'; then
+    NGINX_C="$n"
+    break
+  fi
+done
+if [ -z "$NGINX_C" ]; then
+  echo "No host nginx and no Docker container publishing 443 found." >&2
+  rm -f "$TMP"
+  exit 1
+fi
+
+docker cp "$TMP" "${NGINX_C}:$OUT"
+rm -f "$TMP"
+docker exec "$NGINX_C" nginx -t
+docker exec "$NGINX_C" nginx -s reload
+echo "NGINX_OK_DOCKER_${NGINX_C}"
+'@
+
+$bash = $bash.Replace("__OUTFILE__", $OutFile)
+$bash = $bash.Replace("__CONFB64__", $confB64)
+$bash = $bash -replace "`r`n", "`n" -replace "`r", "`n"
+$remoteB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($bash))
 
 Write-Host "=== push SSL nginx to $VmName ($ResourceGroup) ===" -ForegroundColor Cyan
 Write-Host "    local:  $confPath"
-Write-Host "    remote: $SitesAvailablePath -> $enabledFull"
+Write-Host "    remote: $OutFile"
 
 az vm run-command invoke `
   --resource-group $ResourceGroup `
