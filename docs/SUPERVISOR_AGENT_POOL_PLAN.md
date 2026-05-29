@@ -1,6 +1,6 @@
 # Supervisor & Configurable Agent Worker Pool — Implementation Plan
 
-**Status:** In progress (Phase 0 + 1 done; Phase 2 implemented)  
+**Status:** In progress (Phase 0–2 done; Phase 3 implemented)  
 **Last updated:** 2026-05-28  
 **Related:** [ARCHITECTURE.md](./ARCHITECTURE.md), [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7
 
@@ -19,6 +19,7 @@ This document describes a phased plan to implement the **Supervisor orchestrator
 | **Tests** | `go test ./...` in `aura-backend` (orchestration graph, registry, contract, config) |
 | **Graph engine** | `internal/orchestration/graph` + `GRAPH_ENGINE_MODE=engine`; emits `GRAPH_PLANNED` with dynamic lanes |
 | **Phase 2** | Communications agent (opt-in via `ENABLED_AGENTS`); UI swimlanes from `graph_manifest` |
+| **Phase 3** | Worker `POST /v1/agents/{domain}/execute`; supervisor `AGENT_EXECUTION_MODE=worker` |
 | **Target** | [ARCHITECTURE.md](./ARCHITECTURE.md) and [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7 |
 
 ---

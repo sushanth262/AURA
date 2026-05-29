@@ -62,6 +62,7 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 | `ENABLED_AGENTS` | `telemetry,code,context` | Agent domains in the graph; add `communications` for a fifth swimlane (Phase 2). |
 | `MIN_AGENTS_FOR_SYNTHESIS` | `1` | Minimum successful agent nodes before synthesis. |
 | `SYNTHESIS_JOIN` | `any_success` | `any_success` or `all_required` join policy into synthesis. |
+| `AGENT_EXECUTION_MODE` | `inline` | `inline` uses snapshot fetcher; `worker` POSTs `AgentTask` to aura-worker execute API. |
 | `INTERNAL_SHARED_SECRET` | _(empty)_ | Optional gate on `/internal/v1/…` |
 
 ### aura-worker
@@ -70,6 +71,8 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 |----------|---------|---------|
 | `HTTP_ADDR` | `:8083` | Listen |
 | `WORKER_ENABLED_SOURCES` | `grafana,github,jira` | Routes exposed by **this** process (subset or reorder later per replica). |
+
+**Execute API (Phase 3):** `POST /v1/agents/{domain}/execute` with `AgentTask` body → `AgentResult`. Legacy `GET /v1/sources/{source}?scenario_key=…` remains for inline mode.
 
 AuthZ audit JSON lines still go to **aura-authz** stdout (`decision_id`, `policy_version`, …).
 

@@ -20,6 +20,9 @@ type Runner struct {
 	UpdateStatus func(taskID string, status orchestration.InvestigationStatus) bool
 	FetchSnapshot orchestration.SnapshotFetcher
 
+	// AgentWorker dispatches tasks to aura-worker when AGENT_EXECUTION_MODE=worker.
+	AgentWorker orchestration.AgentWorkerClient
+
 	// AgentRunner optional hook for tests; nil uses stub snapshot path.
 	AgentRunner func(ctx context.Context, node Node, rc RunContext) (orchestration.AgentResult, error)
 }
@@ -171,6 +174,23 @@ func (r *Runner) Run(ctx context.Context, g InvestigationGraph, rc RunContext) e
 }
 
 func (r *Runner) stubAgentResult(ctx context.Context, n Node, rc RunContext) (orchestration.AgentResult, error) {
+	if r.AgentRunner != nil {
+		return r.AgentRunner(ctx, n, rc)
+	}
+	if r.AgentWorker != nil {
+		task := agentTaskFromNode(n, rc)
+		result, err := r.AgentWorker.Execute(ctx, n.AgentDomain, task)
+		if err != nil {
+			return orchestration.AgentResult{Domain: n.AgentDomain, TaskID: rc.TaskID, Status: orchestration.AgentFailed}, err
+		}
+		if result.FindingCount == 0 && len(result.Findings) > 0 {
+			result.FindingCount = len(result.Findings)
+		}
+		if result.FindingCount == 0 {
+			result.FindingCount = DefaultFindingCount(n.AgentDomain)
+		}
+		return result, nil
+	}
 	payload := map[string]any{}
 	if n.Connector != "" && rc.FixtureKey != "" {
 		if snap, err := r.FetchSnapshot.Fetch(ctx, n.Connector, rc.FixtureKey); err == nil && len(snap) > 0 {
@@ -185,6 +205,20 @@ func (r *Runner) stubAgentResult(ctx context.Context, n Node, rc RunContext) (or
 		ConnectorSnapshot: payload,
 		CompletedAt:       r.Now(),
 	}, nil
+}
+
+func agentTaskFromNode(n Node, rc RunContext) orchestration.AgentTask {
+	connectors := []string{}
+	if n.Connector != "" {
+		connectors = []string{n.Connector}
+	}
+	return orchestration.AgentTask{
+		IncidentID: rc.IncidentID,
+		TaskID:     rc.TaskID,
+		Domain:     n.AgentDomain,
+		FixtureKey: rc.FixtureKey,
+		Connectors: connectors,
+	}
 }
 
 type noopSnapshot struct{}

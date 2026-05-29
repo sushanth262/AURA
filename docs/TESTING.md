@@ -76,6 +76,8 @@ Run from `aura-backend/`.
 | Registry | 0 | `go test ./internal/orchestration/registry/... -count=1 -v` |
 | Contract (JSON shapes) | 0 | `go test ./internal/orchestration/contract/... -count=1 -v` |
 | Graph (planner, runner, checkpoint) | 1 | `go test ./internal/orchestration/graph/... -count=1 -v` |
+| Worker pipeline + execute API | 3 | `go test ./internal/workersvc/... -count=1 -v` |
+| Supervisor agent worker client | 3 | `go test ./internal/supervisor/... -count=1 -v -run TestHTTPAgentWorkerClient` |
 
 **Phase 0 + 1 together:**
 
@@ -107,7 +109,7 @@ See [SUPERVISOR_AGENT_POOL_PLAN.md](./SUPERVISOR_AGENT_POOL_PLAN.md) for impleme
 | **0** | Done | `go test ./internal/config/... ./internal/orchestration/contract/... ./internal/orchestration/registry/... ./internal/orchestration -count=1` | — |
 | **1** | Done | `go test ./internal/orchestration/graph/... -count=1 -v` | Graph engine + create incident (below) |
 | **2** | Done | `go test ./internal/orchestration/graph/... ./internal/orchestration/registry/... -count=1 -v` | Enable comms: `ENABLED_AGENTS=telemetry,code,context,communications`; 5 swimlanes after GRAPH_PLANNED |
-| **3** | Planned | _(add commands here)_ | `POST /v1/agents/{domain}/execute` |
+| **3** | Done | `go test ./internal/workersvc/... ./internal/supervisor/... -count=1 -v` | Worker execute + supervisor `AGENT_EXECUTION_MODE=worker` (below) |
 | **4** | Planned | _(add commands here)_ | Communications agent |
 | **5–7** | Planned | _(add commands here)_ | MCP live, Redis checkpoint, RAG/security |
 
@@ -162,6 +164,38 @@ $env:ENABLED_AGENTS = "telemetry"
 $env:GRAPH_ENGINE_MODE = "engine"
 # restart supervisor; only telemetry retrieve lane should run
 ```
+
+### Phase 3 — manual smoke (worker execute)
+
+**Worker direct:**
+
+```powershell
+cd aura-backend
+go run ./cmd/aura-worker   # :8083
+
+$body = @{
+  incident_id = "inc-2847"
+  task_id     = "task-smoke"
+  domain      = "telemetry"
+  fixture_key = "inc2847_api_gateway"
+  connectors  = @("grafana")
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "http://localhost:8083/v1/agents/telemetry/execute" `
+  -ContentType "application/json" -Body $body
+```
+
+**Supervisor delegates to worker:**
+
+```powershell
+$env:WORKER_URL = "http://localhost:8083"
+$env:AGENT_EXECUTION_MODE = "worker"
+$env:GRAPH_ENGINE_MODE = "engine"
+# go run ./cmd/aura-supervisor
+# create incident via BFF; AGENT_COMPLETE should include findings from worker pipeline
+```
+
+Default `AGENT_EXECUTION_MODE=inline` keeps the snapshot fetcher path (`GET /v1/sources/{source}`).
 
 ---
 

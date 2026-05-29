@@ -38,6 +38,11 @@ type AgentExecutor interface {
 	Execute(ctx context.Context, task AgentTask) (AgentResult, error)
 }
 
+// AgentWorkerClient dispatches AgentTask to aura-worker (Phase 3+).
+type AgentWorkerClient interface {
+	Execute(ctx context.Context, domain AgentDomain, task AgentTask) (AgentResult, error)
+}
+
 // SnapshotFetcher pulls fixture connector payloads (supervisor → worker today).
 type SnapshotFetcher interface {
 	Fetch(ctx context.Context, source string, scenarioKey string) (map[string]any, error)

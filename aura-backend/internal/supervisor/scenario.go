@@ -76,6 +76,9 @@ func runGraphEngine(cfg config.Config, st *Store, hub *WSClients, inv *Investiga
 			return st.UpdateStatus(taskID, string(status))
 		},
 	}
+	if strings.ToLower(strings.TrimSpace(cfg.AgentExecutionMode)) == "worker" && strings.TrimSpace(cfg.WorkerURL) != "" {
+		runner.AgentWorker = NewAgentWorkerClient(cfg)
+	}
 
 	go func() {
 		_ = graph.PlanAndRun(context.Background(), runner, reg, policies, rc)

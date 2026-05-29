@@ -1,17 +1,13 @@
 package workersvc
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sushanth262/AURA/aura-backend/internal/config"
-	"github.com/sushanth262/AURA/aura-backend/internal/fixturesdata"
-	"gopkg.in/yaml.v3"
 )
 
 var allowedSources = []string{"grafana", "github", "jira", "slack"}
@@ -32,6 +28,7 @@ func (s *Server) Router() http.Handler {
 	})
 
 	r.Get("/v1/sources/{source}", s.handleSourceMock)
+	r.Post("/v1/agents/{domain}/execute", s.handleAgentExecute)
 	return r
 }
 
@@ -74,27 +71,6 @@ func isKnownSource(s string) bool {
 		}
 	}
 	return false
-}
-
-func loadScenarioYAML(baseName string) (map[string]any, error) {
-	b, err := fixturesdata.FS.ReadFile(baseName + ".yaml")
-	if err != nil {
-		return nil, fmt.Errorf("fixture %q: %w", baseName, err)
-	}
-	body := bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
-	var root map[string]any
-	if err := yaml.Unmarshal(body, &root); err != nil {
-		return nil, err
-	}
-	return root, nil
-}
-
-func extractSourceMock(root map[string]any, source string) any {
-	sm, _ := root["source_mocks"].(map[string]any)
-	if sm == nil {
-		return nil
-	}
-	return sm[source]
 }
 
 func writeErr(w http.ResponseWriter, status int, code, msg string) {

@@ -58,6 +58,9 @@ type Config struct {
 	EnabledAgents []string
 	MinAgentsForSynthesis int
 	SynthesisJoin         string
+
+	// Supervisor agent dispatch: "inline" (snapshot fetcher) or "worker" (POST execute).
+	AgentExecutionMode string
 }
 
 func Load() Config {
@@ -80,6 +83,7 @@ func Load() Config {
 		EnabledAgents:         normalizeAgentList(splitCSV(getenv("ENABLED_AGENTS", "telemetry,code,context"))),
 		MinAgentsForSynthesis: getenvInt("MIN_AGENTS_FOR_SYNTHESIS", 1),
 		SynthesisJoin:         strings.ToLower(strings.TrimSpace(getenv("SYNTHESIS_JOIN", "any_success"))),
+		AgentExecutionMode:    strings.ToLower(strings.TrimSpace(getenv("AGENT_EXECUTION_MODE", "inline"))),
 	}
 	return c
 }
