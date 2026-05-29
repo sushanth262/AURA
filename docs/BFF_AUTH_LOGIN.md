@@ -74,6 +74,11 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 
 **Execute API (Phase 3):** `POST /v1/agents/{domain}/execute` with `AgentTask` body → `AgentResult`. Legacy `GET /v1/sources/{source}?scenario_key=…` remains for inline mode.
 
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CONNECTOR_GRAFANA_MODE` | `fixture` | `fixture` uses YAML mocks; `live` probes `GRAFANA_URL/api/health` and merges fixture payload. |
+| `GRAFANA_URL` | _(empty)_ | Required when `CONNECTOR_GRAFANA_MODE=live`. |
+
 AuthZ audit JSON lines still go to **aura-authz** stdout (`decision_id`, `policy_version`, …).
 
 ---

@@ -31,10 +31,9 @@ func (s *Server) handleAgentExecute(w http.ResponseWriter, r *http.Request) {
 	task.Domain = orchestration.AgentDomain(domain)
 
 	exec := pipeline.Executor{
-		MCP: pipeline.FixtureMCP{
+		MCP: pipeline.RuntimeMCP{
+			Runtime:        s.connectorRuntime(),
 			EnabledSources: s.Cfg.EnabledSources,
-			LoadYAML:       loadScenarioYAML,
-			ExtractMock:    extractSourceMock,
 		},
 		RAG:      pipeline.StubRAG{},
 		Security: pipeline.PassThroughSecurity{},

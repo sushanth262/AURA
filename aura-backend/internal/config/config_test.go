@@ -17,6 +17,15 @@ func TestLoad_GraphEngineDefaults(t *testing.T) {
 	}
 }
 
+func TestLoad_ConnectorGrafanaDefaults(t *testing.T) {
+	os.Unsetenv("CONNECTOR_GRAFANA_MODE")
+	os.Unsetenv("GRAFANA_URL")
+	c := Load()
+	if c.ConnectorGrafanaMode != "fixture" {
+		t.Fatalf("ConnectorGrafanaMode: got %q", c.ConnectorGrafanaMode)
+	}
+}
+
 func TestOrchestrationPolicies(t *testing.T) {
 	c := Config{MinAgentsForSynthesis: 2, SynthesisJoin: "all_required"}
 	min, join := c.OrchestrationPolicies()

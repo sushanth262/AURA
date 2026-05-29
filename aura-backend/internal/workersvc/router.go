@@ -2,18 +2,29 @@ package workersvc
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sushanth262/AURA/aura-backend/internal/config"
+	"github.com/sushanth262/AURA/aura-backend/internal/connectors"
+	"github.com/sushanth262/AURA/aura-backend/internal/orchestration"
 )
 
 var allowedSources = []string{"grafana", "github", "jira", "slack", "teams", "email"}
 
 type Server struct {
-	Cfg config.Config
+	Cfg     config.Config
+	runtime *connectors.Runtime
+}
+
+func (s *Server) connectorRuntime() *connectors.Runtime {
+	if s.runtime == nil {
+		s.runtime = connectors.NewBuiltinRuntime(s.Cfg)
+	}
+	return s.runtime
 }
 
 func (s *Server) Router() http.Handler {
@@ -48,20 +59,24 @@ func (s *Server) handleSourceMock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	root, err := loadScenarioYAML(key)
+	out, err := s.connectorRuntime().Invoke(r.Context(), orchestration.ConnectorCall{
+		ConnectorID: source,
+		ScenarioKey: key,
+	})
 	if err != nil {
+		if errors.Is(err, connectors.ErrCircuitOpen) {
+			writeErr(w, http.StatusServiceUnavailable, "CIRCUIT_OPEN", err.Error())
+			return
+		}
 		writeErr(w, http.StatusNotFound, "UNKNOWN_SCENARIO", err.Error())
 		return
 	}
-
-	payload := extractSourceMock(root, source)
+	if out == nil {
+		writeErr(w, http.StatusNotFound, "NOT_FOUND", "no mock payload for source")
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"scenario_key": key,
-		"source":       source,
-		"mock":         true,
-		"payload":      payload,
-	})
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func isKnownSource(s string) bool {

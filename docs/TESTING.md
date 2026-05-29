@@ -77,6 +77,7 @@ Run from `aura-backend/`.
 | Contract (JSON shapes) | 0 | `go test ./internal/orchestration/contract/... -count=1 -v` |
 | Graph (planner, runner, checkpoint) | 1 | `go test ./internal/orchestration/graph/... -count=1 -v` |
 | Worker pipeline + execute API | 3 | `go test ./internal/workersvc/... -count=1 -v` |
+| Connector runtime + circuit breaker | 5 | `go test ./internal/connectors/... -count=1 -v` |
 | Supervisor agent worker client | 3 | `go test ./internal/supervisor/... -count=1 -v -run TestHTTPAgentWorkerClient` |
 
 **Phase 0 + 1 together:**
@@ -111,7 +112,8 @@ See [SUPERVISOR_AGENT_POOL_PLAN.md](./SUPERVISOR_AGENT_POOL_PLAN.md) for impleme
 | **2** | Done | `go test ./internal/orchestration/graph/... ./internal/orchestration/registry/... -count=1 -v` | Enable comms: `ENABLED_AGENTS=telemetry,code,context,communications`; 5 swimlanes after GRAPH_PLANNED |
 | **3** | Done | `go test ./internal/workersvc/... ./internal/supervisor/... -count=1 -v` | Worker execute + supervisor `AGENT_EXECUTION_MODE=worker` (below) |
 | **4** | Done | `go test ./internal/orchestration/graph/... ./internal/workersvc/pipeline/... -count=1 -v -run 'FuseSynthesis|Communications|FourParallel'` | Comms enabled: 5 lanes, 3 comms finding types, evidence includes Communications tab |
-| **5–7** | Planned | _(add commands here)_ | MCP live, Redis checkpoint, RAG/security |
+| **5** | Done | `go test ./internal/connectors/... -count=1 -v` | Connector runtime + circuit breaker; optional Grafana live probe |
+| **6** | Planned | _(add commands here)_ | Redis checkpoint, resume |
 
 ### Phase 1 — manual smoke (graph engine)
 
@@ -215,6 +217,24 @@ go run ./cmd/aura-supervisor
 ```
 
 **Verify:** findings timeline includes `CHANNEL_ALERT_MENTION`, `ONCALL_PING`, `EMAIL_THREAD`; evidence narrative has **Communications Agent**; `confidence_breakdown.timeline_overlap_boost` is `0.05` when comms timestamps fall inside telemetry spike window.
+
+### Phase 5 — manual smoke (connector runtime)
+
+Worker now routes MCP through `internal/connectors` with per-connector circuit breakers:
+
+```powershell
+# Default: fixture mode (unchanged behavior)
+go run ./cmd/aura-worker
+
+Invoke-RestMethod "http://127.0.0.1:8083/v1/sources/grafana?scenario_key=inc2847_api_gateway"
+
+# Optional Grafana live probe (falls back to fixture on probe failure)
+$env:CONNECTOR_GRAFANA_MODE = "live"
+$env:GRAFANA_URL = "http://localhost:3000"
+go run ./cmd/aura-worker
+```
+
+Circuit open returns HTTP **503** `CIRCUIT_OPEN` on `/v1/sources/{source}` after repeated failures.
 
 ---
 
