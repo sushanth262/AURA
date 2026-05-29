@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+// OrchestrationPolicies builds graph policies from env-backed config.
+func (c Config) OrchestrationPolicies() (minAgents int, join string) {
+	minAgents = c.MinAgentsForSynthesis
+	if minAgents < 1 {
+		minAgents = 1
+	}
+	join = c.SynthesisJoin
+	if join == "" {
+		join = "any_success"
+	}
+	return minAgents, join
+}
+
 // Config is loaded from environment (12-factor). Defaults suit local dev + docker-compose.
 // Each binary reads only the fields it needs; shared JWT/policy/env vars stay aligned across services.
 type Config struct {
@@ -38,6 +51,13 @@ type Config struct {
 
 	// aura-worker: which connectors this process exposes (subset); empty defaults to all three mocks.
 	EnabledSources []string
+
+	// Supervisor graph engine: "engine" (default) or "legacy" (RunMockScenario).
+	GraphEngineMode string
+	// Comma-separated agent domains for graph planning (telemetry, code, context).
+	EnabledAgents []string
+	MinAgentsForSynthesis int
+	SynthesisJoin         string
 }
 
 func Load() Config {
@@ -56,8 +76,28 @@ func Load() Config {
 		WorkerURL:             getenv("WORKER_URL", ""),
 		WorkerSources:         normalizeSourceList(splitCSV(getenv("WORKER_SOURCES", "grafana,github,jira"))),
 		EnabledSources:        normalizeSourceList(splitCSV(getenv("WORKER_ENABLED_SOURCES", "grafana,github,jira"))),
+		GraphEngineMode:       strings.ToLower(strings.TrimSpace(getenv("GRAPH_ENGINE_MODE", "engine"))),
+		EnabledAgents:         normalizeAgentList(splitCSV(getenv("ENABLED_AGENTS", "telemetry,code,context"))),
+		MinAgentsForSynthesis: getenvInt("MIN_AGENTS_FOR_SYNTHESIS", 1),
+		SynthesisJoin:         strings.ToLower(strings.TrimSpace(getenv("SYNTHESIS_JOIN", "any_success"))),
 	}
 	return c
+}
+
+func normalizeAgentList(in []string) []string {
+	return normalizeSourceList(in)
+}
+
+func getenvInt(k string, def int) int {
+	v := strings.TrimSpace(os.Getenv(k))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return def
+	}
+	return n
 }
 
 func normalizeSourceList(in []string) []string {

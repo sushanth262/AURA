@@ -23,8 +23,8 @@ func main() {
 		Hub:     hub,
 		Fetcher: fetcher,
 	}
-	log.Printf("aura-supervisor listening on %s (WORKER_URL=%q WORKER_SOURCES=%v)",
-		cfg.HTTPAddr, cfg.WorkerURL, cfg.WorkerSources)
+	log.Printf("aura-supervisor listening on %s (GRAPH_ENGINE_MODE=%q ENABLED_AGENTS=%v WORKER_URL=%q)",
+		cfg.HTTPAddr, cfg.GraphEngineMode, cfg.EnabledAgents, cfg.WorkerURL)
 	if err := http.ListenAndServe(cfg.HTTPAddr, api.Router()); err != nil {
 		log.Fatal(err)
 	}

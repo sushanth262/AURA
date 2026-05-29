@@ -17,7 +17,9 @@ AURA is an AI-driven, multi-agent diagnostic platform that correlates telemetry,
 
 | Document | Description |
 |----------|-------------|
+| [**Test commands**](docs/TESTING.md) | Run all tests and smoke checks (Go, Jest, by phase)—extend as features land |
 | [**Architecture (C4 + Mermaid)**](docs/ARCHITECTURE.md) | End-to-end architecture: system context, containers, components, user flows, sequences, and operational scenarios |
+| [Supervisor & agent pool plan](docs/SUPERVISOR_AGENT_POOL_PLAN.md) | Phased implementation (graph engine, configurable agents) |
 | [AI Diagnostic Agent (Word)](docs/AI%20Diagnostic%20Agent.docx) | Source narrative: components, hybrid bridge, security, deployment |
 | [AI diagnostics with diagram details (PDF)](docs/AIdiagosticsWithDiagramdetails.pdf) | Consolidated report and diagram references |
 

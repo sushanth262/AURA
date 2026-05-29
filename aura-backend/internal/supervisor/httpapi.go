@@ -99,7 +99,7 @@ func (s *HTTPServer) handleCreateIncident(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.Store.Create(inv)
-	RunMockScenario(s.Cfg, s.Store, s.Hub, inv, s.Fetcher)
+	StartInvestigation(s.Cfg, s.Store, s.Hub, inv, s.Fetcher)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
