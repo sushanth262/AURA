@@ -24,6 +24,7 @@ type RAGQuery struct {
 	Namespaces  []string
 	IncidentID  string
 	QueryText   string
+	TenantID    string
 }
 
 // SecurityClient redacts raw connector payloads before synthesis/LLM.

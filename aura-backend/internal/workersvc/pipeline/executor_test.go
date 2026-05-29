@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sushanth262/AURA/aura-backend/internal/config"
 	"github.com/sushanth262/AURA/aura-backend/internal/orchestration"
 	orchregistry "github.com/sushanth262/AURA/aura-backend/internal/orchestration/registry"
 	"github.com/sushanth262/AURA/aura-backend/internal/workersvc/pipeline"
@@ -108,9 +109,10 @@ func TestExecutor_TelemetryCannotUseGitHubConnector(t *testing.T) {
 		t.Fatal("telemetry catalog missing")
 	}
 	exec := pipeline.Executor{
-		MCP:      &recordingMCP{},
-		RAG:      pipeline.StubRAG{},
-		Security: pipeline.PassThroughSecurity{},
+		MCP:           &recordingMCP{},
+		RAG:           pipeline.NewRAGClient(config.Config{RAGMode: "stub"}),
+		Security:      pipeline.NewSecurityClient(config.Config{SecurityMode: "inline"}),
+		DefaultTenant: "demo",
 	}
 	_, err := exec.Run(context.Background(), orchestration.AgentTask{
 		Domain:     orchestration.DomainTelemetry,
@@ -143,8 +145,9 @@ func TestExecutor_CancelledContextMCPError(t *testing.T) {
 			},
 			ExtractMock: func(map[string]any, string) any { return nil },
 		},
-		RAG:      pipeline.StubRAG{},
-		Security: pipeline.PassThroughSecurity{},
+		RAG:           pipeline.NewRAGClient(config.Config{RAGMode: "stub"}),
+		Security:      pipeline.NewSecurityClient(config.Config{SecurityMode: "inline"}),
+		DefaultTenant: "demo",
 	}
 
 	_, err := exec.Run(ctx, orchestration.AgentTask{

@@ -35,8 +35,9 @@ func (s *Server) handleAgentExecute(w http.ResponseWriter, r *http.Request) {
 			Runtime:        s.connectorRuntime(),
 			EnabledSources: s.Cfg.EnabledSources,
 		},
-		RAG:      pipeline.StubRAG{},
-		Security: pipeline.PassThroughSecurity{},
+		RAG:           pipeline.NewRAGClient(s.Cfg),
+		Security:      pipeline.NewSecurityClient(s.Cfg),
+		DefaultTenant: s.Cfg.DefaultTenantID,
 	}
 
 	result, err := exec.Run(r.Context(), task, spec)

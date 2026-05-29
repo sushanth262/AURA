@@ -66,6 +66,24 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 | `CHECKPOINT_BACKEND` | `memory` | `memory` (dev) or `redis` for durable graph checkpoints. |
 | `REDIS_URL` | _(empty)_ | Required when `CHECKPOINT_BACKEND=redis` (e.g. `redis://127.0.0.1:6379`). |
 | `CHECKPOINT_KEY_PREFIX` | _(empty)_ | Optional Redis key prefix (default `aura:orch:checkpoint:`). |
+
+### aura-worker — RAG & Security (Phase 7)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RAG_MODE` | `stub` | `stub` uses in-process fixture retrieval; `http` calls `RAG_SERVICE_URL`. |
+| `RAG_SERVICE_URL` | _(empty)_ | Base URL for RAG retrieve API (`POST /v1/retrieve`). |
+| `SECURITY_MODE` | `inline` | `inline` applies built-in redaction rules; `http` calls `SECURITY_SERVICE_URL`. |
+| `SECURITY_SERVICE_URL` | _(empty)_ | Base URL for redaction API (`POST /v1/redact`). |
+| `DEFAULT_TENANT_ID` | `demo` | Tenant scope for RAG namespace isolation. |
+
+### aura-supervisor — synthesis (Phase 7)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SYNTHESIS_LLM_MODE` | `off` | `off` keeps deterministic narrative; `stub` adds `llm_narrative_stub` to synthesis payload. |
+| `DEFAULT_TENANT_ID` | `demo` | Passed to worker agent tasks for RAG scoping. |
+
 | `INTERNAL_SHARED_SECRET` | _(empty)_ | Optional gate on `/internal/v1/…` |
 
 ### aura-worker

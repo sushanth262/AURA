@@ -114,7 +114,7 @@ See [SUPERVISOR_AGENT_POOL_PLAN.md](./SUPERVISOR_AGENT_POOL_PLAN.md) for impleme
 | **4** | Done | `go test ./internal/orchestration/graph/... ./internal/workersvc/pipeline/... -count=1 -v -run 'FuseSynthesis|Communications|FourParallel'` | Comms enabled: 5 lanes, 3 comms finding types, evidence includes Communications tab |
 | **5** | Done | `go test ./internal/connectors/... -count=1 -v` | Connector runtime + circuit breaker; optional Grafana live probe |
 | **6** | Done | `go test ./internal/orchestration/graph/... -count=1 -v -run 'Resume|Redis|Checkpoint'` | Redis checkpoint + resume after supervisor restart |
-| **7** | Planned | _(add commands here)_ | RAG/security live services |
+| **7** | Done | `go test ./internal/rag/... ./internal/security/... ./internal/workersvc/pipeline/... -count=1 -v` | Inline security redaction + RAG namespace isolation |
 
 ### Phase 1 — manual smoke (graph engine)
 
@@ -254,6 +254,21 @@ go run ./cmd/aura-supervisor
 ```
 
 Default `CHECKPOINT_BACKEND=memory` keeps in-process checkpoints (dev).
+
+### Phase 7 — manual smoke (RAG + Security)
+
+Worker pipeline now uses inline security redaction (emails → `[EMAIL_REDACTED]`) and tenant-scoped RAG stubs by default:
+
+```powershell
+# Default — no extra env required
+go run ./cmd/aura-worker
+
+# Optional LLM narrative stub on supervisor
+$env:SYNTHESIS_LLM_MODE = "stub"
+go run ./cmd/aura-supervisor
+```
+
+After an investigation completes, check evidence/synthesis JSON for `llm_narrative_stub` when enabled. Connector snapshots should not contain raw `@` email patterns.
 
 ---
 

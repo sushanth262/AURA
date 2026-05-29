@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/sushanth262/AURA/aura-backend/internal/orchestration"
@@ -34,11 +35,12 @@ type SecurityClient interface {
 
 // Executor runs MCP → RAG → Security → findings for one agent task.
 type Executor struct {
-	MCP      MCPClient
-	RAG      RAGClient
-	Security SecurityClient
-	Now      func() time.Time
-	OnStage  func(Stage)
+	MCP          MCPClient
+	RAG          RAGClient
+	Security     SecurityClient
+	DefaultTenant string
+	Now          func() time.Time
+	OnStage      func(Stage)
 }
 
 // Run executes the pipeline and returns an AgentResult.
@@ -85,14 +87,29 @@ func (e *Executor) Run(ctx context.Context, task orchestration.AgentTask, spec o
 	}
 
 	e.stage(StageRAG)
-	_, _ = e.RAG.Retrieve(ctx, orchestration.RAGQuery{
+	tenantID := task.TenantID
+	if tenantID == "" {
+		tenantID = e.DefaultTenant
+	}
+	if tenantID == "" {
+		tenantID = "demo"
+	}
+	ragHits, _ := e.RAG.Retrieve(ctx, orchestration.RAGQuery{
 		Namespaces: spec.RAGNamespaces,
 		IncidentID: task.IncidentID,
+		TenantID:   tenantID,
+		QueryText:  task.Instructions,
 	})
 
 	e.stage(StageSecurity)
 	redacted := lastSnap
-	if lastSnap != nil && e.Security != nil {
+	if lastSnap != nil {
+		if e.Security == nil {
+			return orchestration.AgentResult{
+				Domain: task.Domain, TaskID: task.TaskID,
+				Status: orchestration.AgentFailed, CompletedAt: e.Now(),
+			}, errSecurityRequired
+		}
 		var err error
 		redacted, err = e.Security.Redact(ctx, lastSnap, primaryConnector(spec))
 		if err != nil {
@@ -106,6 +123,13 @@ func (e *Executor) Run(ctx context.Context, task orchestration.AgentTask, spec o
 	}
 
 	findings := buildFindings(task.Domain, connectorSnaps)
+	if len(ragHits) > 0 && len(findings) > 0 {
+		evidence := make([]any, len(ragHits))
+		for i, hit := range ragHits {
+			evidence[i] = hit
+		}
+		findings[0].SupportingEvidence = evidence
+	}
 	return orchestration.AgentResult{
 		Domain:               task.Domain,
 		TaskID:               task.TaskID,
@@ -143,6 +167,8 @@ func primaryConnector(spec orchregistry.AgentDefinition) string {
 type errConnectorDenied struct {
 	agent, connector string
 }
+
+var errSecurityRequired = errors.New("security client required")
 
 // ErrConnectorDenied is returned when a task requests a connector outside the agent allowlist.
 type ErrConnectorDenied = errConnectorDenied

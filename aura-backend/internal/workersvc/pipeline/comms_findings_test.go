@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sushanth262/AURA/aura-backend/internal/config"
 	"github.com/sushanth262/AURA/aura-backend/internal/fixturesdata"
 	"github.com/sushanth262/AURA/aura-backend/internal/orchestration"
 	orchregistry "github.com/sushanth262/AURA/aura-backend/internal/orchestration/registry"
@@ -27,8 +28,9 @@ func TestExecutor_CommunicationsMultiConnectorFindings(t *testing.T) {
 			LoadYAML:       loadScenarioYAML,
 			ExtractMock:    extractSourceMock,
 		},
-		RAG:      pipeline.StubRAG{},
-		Security: pipeline.PassThroughSecurity{},
+		RAG:           pipeline.NewRAGClient(config.Config{RAGMode: "stub"}),
+		Security:      pipeline.NewSecurityClient(config.Config{SecurityMode: "inline"}),
+		DefaultTenant: "demo",
 	}
 
 	result, err := exec.Run(context.Background(), orchestration.AgentTask{

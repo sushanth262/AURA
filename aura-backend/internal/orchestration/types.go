@@ -48,6 +48,7 @@ type AgentTask struct {
 	TimeWindow  map[string]any `json:"time_window,omitempty"`
 	Connectors  []string       `json:"connectors,omitempty"`
 	FixtureKey  string         `json:"fixture_key,omitempty"`
+	TenantID    string         `json:"tenant_id,omitempty"`
 }
 
 // Finding is a single grounded insight from an agent.

@@ -70,6 +70,14 @@ type Config struct {
 	// Connector runtime (aura-worker, Phase 5+).
 	ConnectorGrafanaMode string // fixture | live
 	GrafanaURL           string
+
+	// RAG and Security services (aura-worker, Phase 7+).
+	RAGMode            string // stub | http
+	RAGServiceURL      string
+	SecurityMode       string // inline | http
+	SecurityServiceURL string
+	DefaultTenantID    string
+	SynthesisLLMMode   string // off | stub (supervisor narrative)
 }
 
 func Load() Config {
@@ -98,6 +106,12 @@ func Load() Config {
 		CheckpointKeyPrefix:   strings.TrimSpace(getenv("CHECKPOINT_KEY_PREFIX", "")),
 		ConnectorGrafanaMode:  strings.ToLower(strings.TrimSpace(getenv("CONNECTOR_GRAFANA_MODE", "fixture"))),
 		GrafanaURL:            strings.TrimSpace(getenv("GRAFANA_URL", "")),
+		RAGMode:               strings.ToLower(strings.TrimSpace(getenv("RAG_MODE", "stub"))),
+		RAGServiceURL:         strings.TrimSpace(getenv("RAG_SERVICE_URL", "")),
+		SecurityMode:          strings.ToLower(strings.TrimSpace(getenv("SECURITY_MODE", "inline"))),
+		SecurityServiceURL:    strings.TrimSpace(getenv("SECURITY_SERVICE_URL", "")),
+		DefaultTenantID:       strings.TrimSpace(getenv("DEFAULT_TENANT_ID", "demo")),
+		SynthesisLLMMode:      strings.ToLower(strings.TrimSpace(getenv("SYNTHESIS_LLM_MODE", "off"))),
 	}
 	return c
 }

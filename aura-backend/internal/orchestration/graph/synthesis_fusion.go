@@ -263,5 +263,13 @@ func buildNarrativeStructured(rc RunContext, commsEnabled bool, score float64) m
 			"confidence_level": fmt.Sprintf("%.0f%%", score*100),
 			"action_item":      fmt.Sprintf("Review the identified commit(s) affecting %s and consider a rollback pending operator approval. Validate error rates recover after remediation.", svc),
 		},
+		"llm_narrative_stub": llmNarrativeStub(rc, svc),
 	}
+}
+
+func llmNarrativeStub(rc RunContext, svc string) any {
+	if strings.ToLower(strings.TrimSpace(rc.SynthesisLLMMode)) != "stub" {
+		return nil
+	}
+	return fmt.Sprintf("Deterministic fusion for %s is complete; optional LLM narrative generation is stubbed in Phase 7.", svc)
 }

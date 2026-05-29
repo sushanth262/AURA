@@ -66,6 +66,8 @@ func runGraphEngine(cfg config.Config, st *Store, hub *WSClients, inv *Investiga
 		ScenarioID:     inv.Fixture.ScenarioID,
 		PolicyVersion:  cfg.PolicyVersion,
 		Status:         inv.Status,
+		SynthesisLLMMode: cfg.SynthesisLLMMode,
+		TenantID:       cfg.DefaultTenantID,
 	}
 
 	runner := &graph.Runner{

@@ -1,6 +1,6 @@
 # Supervisor & Configurable Agent Worker Pool — Implementation Plan
 
-**Status:** In progress (Phase 0–5 done; Phase 6 implemented)  
+**Status:** Complete (Phase 0–7 implemented)  
 **Last updated:** 2026-05-28  
 **Related:** [ARCHITECTURE.md](./ARCHITECTURE.md), [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7
 
@@ -23,6 +23,7 @@ This document describes a phased plan to implement the **Supervisor orchestrator
 | **Phase 4** | Communications connectors (slack/teams/email); synthesis fusion + agent_agreement |
 | **Phase 5** | MCP connector runtime with circuit breakers; `CONNECTOR_GRAFANA_MODE=live` |
 | **Phase 6** | Redis checkpoints + graph resume; `CHECKPOINT_BACKEND=redis` |
+| **Phase 7** | RAG + Security pipeline clients; inline email redaction; optional HTTP + LLM narrative stub |
 | **Target** | [ARCHITECTURE.md](./ARCHITECTURE.md) and [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7 |
 
 ---
@@ -442,6 +443,8 @@ Keep `RunMockScenario` as `legacy` shim until Phase 1 is stable in production.
 | `AGENT_EXECUTION_MODE` | 3 | `inline` \| `worker` |
 | `CONNECTOR_*_MODE` | 5 | Per-connector `fixture` \| `live` |
 | `CHECKPOINT_BACKEND` | 6 | `memory` \| `redis` |
+| `RAG_MODE` / `SECURITY_MODE` | 7 | `stub`/`inline` (default) or `http` with service URLs |
+| `SYNTHESIS_LLM_MODE` | 7 | `off` \| `stub` |
 
 ---
 

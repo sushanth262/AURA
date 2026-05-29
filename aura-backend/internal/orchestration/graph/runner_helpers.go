@@ -74,6 +74,7 @@ func agentTaskFromNode(n Node, rc RunContext) orchestration.AgentTask {
 		Domain:     n.AgentDomain,
 		FixtureKey: rc.FixtureKey,
 		Connectors: connectors,
+		TenantID:   rc.TenantID,
 	}
 }
 

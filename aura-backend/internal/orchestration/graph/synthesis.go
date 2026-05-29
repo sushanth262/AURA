@@ -16,6 +16,8 @@ type RunContext struct {
 	ScenarioID     string
 	PolicyVersion  string
 	Status         string
+	SynthesisLLMMode string
+	TenantID       string
 }
 
 func scopeService(scope map[string]any) string {

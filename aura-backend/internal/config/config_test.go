@@ -35,6 +35,22 @@ func TestLoad_CheckpointBackendDefaults(t *testing.T) {
 	}
 }
 
+func TestLoad_RAGSecurityDefaults(t *testing.T) {
+	os.Unsetenv("RAG_MODE")
+	os.Unsetenv("RAG_SERVICE_URL")
+	os.Unsetenv("SECURITY_MODE")
+	os.Unsetenv("SECURITY_SERVICE_URL")
+	os.Unsetenv("DEFAULT_TENANT_ID")
+	os.Unsetenv("SYNTHESIS_LLM_MODE")
+	c := Load()
+	if c.RAGMode != "stub" || c.SecurityMode != "inline" {
+		t.Fatalf("RAG/Security: got rag=%q security=%q", c.RAGMode, c.SecurityMode)
+	}
+	if c.DefaultTenantID != "demo" || c.SynthesisLLMMode != "off" {
+		t.Fatalf("tenant/llm: got tenant=%q llm=%q", c.DefaultTenantID, c.SynthesisLLMMode)
+	}
+}
+
 func TestOrchestrationPolicies(t *testing.T) {
 	c := Config{MinAgentsForSynthesis: 2, SynthesisJoin: "all_required"}
 	min, join := c.OrchestrationPolicies()
