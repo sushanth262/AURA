@@ -37,5 +37,9 @@ yarn-error.*
 # Testing
 coverage/
 
+# IDE / editor
+.vscode/
+.idea/
+
 # @generated expo-cli
 # @end expo-cli

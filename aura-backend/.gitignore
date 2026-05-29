@@ -1,0 +1,13 @@
+# Go build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test / coverage
+coverage.out
+coverage.html
+*.test
