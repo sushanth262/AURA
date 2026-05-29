@@ -6,25 +6,12 @@ import { ConfidenceBar } from '@/components/ui/ConfidenceBar';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import type { AgentDomain, Finding } from '@/types/api';
+import type { Finding } from '@/types/api';
+import { domainColor, domainLabel } from '@/utils/graphLanes';
 
 interface Props {
   findings: Finding[];
 }
-
-const DOMAIN_COLOR: Record<AgentDomain, string> = {
-  telemetry: '#3B82F6',
-  code:      '#8B5CF6',
-  context:   '#10B981',
-  supervisor:colors.brand[500],
-};
-
-const DOMAIN_LABEL: Record<AgentDomain, string> = {
-  telemetry: 'Telemetry',
-  code:      'Code',
-  context:   'Context',
-  supervisor:'Supervisor',
-};
 
 export function TimelinePanel({ findings }: Props) {
   const sorted = [...findings].sort((a, b) => {
@@ -44,8 +31,8 @@ export function TimelinePanel({ findings }: Props) {
 }
 
 function FindingItem({ finding }: { finding: Finding }) {
-  const color = DOMAIN_COLOR[finding.domain] ?? colors.brand[500];
-  const domainLabel = DOMAIN_LABEL[finding.domain] ?? finding.domain;
+  const color = domainColor(finding.domain);
+  const label = domainLabel(finding.domain);
   const ts = finding.timeline_ts
     ? new Date(finding.timeline_ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : null;
@@ -55,7 +42,7 @@ function FindingItem({ finding }: { finding: Finding }) {
       <View style={[styles.bar, { backgroundColor: color }]} />
       <View style={styles.body}>
         <View style={styles.meta}>
-          <Text style={[styles.domain, { color }]}>{domainLabel}</Text>
+          <Text style={[styles.domain, { color }]}>{label}</Text>
           <Text style={styles.findingType}>{finding.type.replace(/_/g, ' ')}</Text>
           {ts && <Text style={styles.ts}>{ts}</Text>}
         </View>

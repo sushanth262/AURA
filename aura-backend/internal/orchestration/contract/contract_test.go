@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sushanth262/AURA/aura-backend/internal/orchestration"
+	"github.com/sushanth262/AURA/aura-backend/internal/orchestration/graph"
 )
 
 // Progress event shape aligned with aura-frontend/specs/openapi.yaml TaskProgressEvent.
@@ -81,5 +82,38 @@ func TestGraphCheckpoint_JSONShape(t *testing.T) {
 		if _, ok := m[key]; !ok {
 			t.Fatalf("missing key %q", key)
 		}
+	}
+}
+
+func TestGraphPlannedPayload_JSONShape(t *testing.T) {
+	m := graph.GraphManifest{
+		GraphVersion: 1,
+		Lanes: []graph.GraphLane{
+			{Domain: "supervisor", Label: "Supervisor", Color: "#1B2B65"},
+			{Domain: "communications", Label: "Communications", Color: "#F59E0B"},
+		},
+	}
+	ev := orchestration.ProgressEvent{
+		TaskID:      "TSK-1",
+		IncidentID:  "INC-1",
+		EventType:   "GRAPH_PLANNED",
+		AgentDomain: orchestration.DomainSupervisor,
+		Payload:     map[string]any{"graph_manifest": m},
+		SequenceNum: 4,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	b, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var root map[string]any
+	if err := json.Unmarshal(b, &root); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := root["payload"].(map[string]any)
+	manifest, _ := payload["graph_manifest"].(map[string]any)
+	lanes, _ := manifest["lanes"].([]any)
+	if len(lanes) != 2 {
+		t.Fatalf("lanes: got %d", len(lanes))
 	}
 }

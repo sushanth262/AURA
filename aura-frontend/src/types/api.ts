@@ -19,7 +19,7 @@ export type InvestigationStatus =
   | 'PARTIAL_EVIDENCE'
   | 'FAILED';
 
-export type AgentDomain = 'telemetry' | 'code' | 'context' | 'supervisor';
+export type AgentDomain = 'telemetry' | 'code' | 'context' | 'communications' | 'supervisor';
 
 export type ArtifactType =
   | 'STACK_TRACE'
@@ -57,6 +57,7 @@ export type AgentStatus = 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
 
 export type WSEventType =
   | 'TASK_CLAIMED'
+  | 'GRAPH_PLANNED'
   | 'AGENT_STARTED'
   | 'AGENT_COMPLETE'
   | 'SYNTHESIS_STARTED'
@@ -66,6 +67,18 @@ export type WSEventType =
   | 'REMEDIATION_STARTED'
   | 'REMEDIATION_COMPLETE'
   | 'TASK_FAILED';
+
+export interface GraphLane {
+  domain: string;
+  label:  string;
+  color:  string;
+}
+
+export interface GraphManifest {
+  graph_version: number;
+  lanes:         GraphLane[];
+  node_ids?:     string[];
+}
 
 // ── Common Objects ────────────────────────────────────────────────────────────
 

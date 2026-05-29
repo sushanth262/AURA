@@ -27,6 +27,24 @@ func runGraphEngine(cfg config.Config, st *Store, hub *WSClients, inv *Investiga
 	if len(enabled) == 0 {
 		enabled = []string{"telemetry", "code", "context"}
 	}
+	if err := registry.ValidateEnabledDomains(enabled); err != nil {
+		// Skip unknown domains; supervisor still runs with valid subset.
+		filtered := make([]string, 0, len(enabled))
+		known := map[string]struct{}{}
+		for _, d := range registry.KnownDomains() {
+			known[d] = struct{}{}
+		}
+		for _, d := range enabled {
+			d = strings.ToLower(strings.TrimSpace(d))
+			if _, ok := known[d]; ok {
+				filtered = append(filtered, d)
+			}
+		}
+		if len(filtered) == 0 {
+			filtered = []string{"telemetry", "code", "context"}
+		}
+		enabled = filtered
+	}
 	reg := registry.New(enabled)
 	minAgents, join := cfg.OrchestrationPolicies()
 	policies := orchestration.PoliciesFromConfig(minAgents, join)

@@ -956,11 +956,16 @@ components:
 
     AgentDomain:
       type: string
-      enum: [telemetry, code, context, supervisor]
+      description: >
+        Agent swimlane identifier. Known values: telemetry, code, context,
+        communications, supervisor. Clients should tolerate unknown domains
+        (forward-compatible with configurable agent pools).
+      enum: [telemetry, code, context, communications, supervisor]
       x-ui-icon-map:
         telemetry: "📡"
         code: "💻"
         context: "📄"
+        communications: "💬"
         supervisor: "🔧"
 
     ArtifactType:
@@ -1018,6 +1023,7 @@ components:
       type: string
       enum:
         - TASK_CLAIMED
+        - GRAPH_PLANNED
         - AGENT_STARTED
         - AGENT_COMPLETE
         - SYNTHESIS_STARTED
@@ -1621,6 +1627,38 @@ components:
 
     # ── WebSocket Message Schemas ─────────────────────────────────────────────
 
+    GraphLane:
+      type: object
+      required: [domain, label, color]
+      properties:
+        domain:
+          type: string
+          description: Agent domain for this swimlane (e.g. telemetry, communications)
+        label:
+          type: string
+          example: "Communications"
+        color:
+          type: string
+          description: Hex color for lane chrome
+          example: "#F59E0B"
+
+    GraphManifest:
+      type: object
+      required: [graph_version, lanes]
+      description: Planned investigation graph for dynamic UI swimlanes (Phase 2+)
+      properties:
+        graph_version:
+          type: integer
+          minimum: 1
+        lanes:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphLane'
+        node_ids:
+          type: array
+          items:
+            type: string
+
     TaskProgressEvent:
       type: object
       required: [task_id, incident_id, event_type, timestamp, sequence_num]
@@ -1637,8 +1675,10 @@ components:
         **Payload shapes by event_type**:
         | event_type | payload fields |
         |------------|---------------|
-        | AGENT_STARTED | `{ domain, progress_pct, status_label }` |
-        | AGENT_COMPLETE | `{ domain, duration_ms, finding_count, status }` |
+        | GRAPH_PLANNED | `{ graph_manifest: GraphManifest }` |
+        | AGENT_STARTED | `{ progress_pct, message }` |
+        | AGENT_COMPLETE | `{ finding_count, connector_snapshot? }` |
+        | SYNTHESIS_COMPLETE | `{ confidence_score, findings, narrative }` |
         | SYNTHESIS_COMPLETE | `{ confidence_score }` |
         | HITL_REQUESTED | `{ evidence_bundle_url }` |
         | REMEDIATION_STARTED | `{ action_ids }` |

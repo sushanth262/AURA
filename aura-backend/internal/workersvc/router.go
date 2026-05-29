@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var allowedSources = []string{"grafana", "github", "jira"}
+var allowedSources = []string{"grafana", "github", "jira", "slack"}
 
 type Server struct {
 	Cfg config.Config

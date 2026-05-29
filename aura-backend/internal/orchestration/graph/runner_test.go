@@ -53,6 +53,7 @@ func TestRunner_GoldenEventSequence(t *testing.T) {
 		"TASK_CLAIMED",
 		"AGENT_STARTED",
 		"AGENT_COMPLETE",
+		"GRAPH_PLANNED",
 		"AGENT_STARTED",
 		"AGENT_STARTED",
 		"AGENT_STARTED",
@@ -101,8 +102,34 @@ func TestRunner_GoldenEventSequence(t *testing.T) {
 	if !ok {
 		t.Fatal("missing checkpoint")
 	}
-	if len(cp.CompletedNodes) < 6 {
+	if len(cp.CompletedNodes) < 7 {
 		t.Fatalf("expected completed nodes, got %v", cp.CompletedNodes)
+	}
+
+	// GRAPH_PLANNED carries swimlane manifest.
+	var planned *orchestration.ProgressEvent
+	for i := range events {
+		if events[i].EventType == "GRAPH_PLANNED" {
+			planned = &events[i]
+			break
+		}
+	}
+	if planned == nil {
+		t.Fatal("missing GRAPH_PLANNED event")
+	}
+	manifest, ok := planned.Payload["graph_manifest"].(GraphManifest)
+	if !ok {
+		// payload may be map from JSON round-trip in other tests
+		if m, ok2 := planned.Payload["graph_manifest"].(map[string]any); ok2 {
+			lanes, _ := m["lanes"].([]any)
+			if len(lanes) != 4 {
+				t.Fatalf("manifest lanes via map: got %d", len(lanes))
+			}
+		} else {
+			t.Fatalf("graph_manifest type: %T", planned.Payload["graph_manifest"])
+		}
+	} else if len(manifest.Lanes) != 4 {
+		t.Fatalf("manifest lanes: got %d", len(manifest.Lanes))
 	}
 }
 

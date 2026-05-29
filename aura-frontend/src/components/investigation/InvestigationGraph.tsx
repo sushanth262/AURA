@@ -1,25 +1,17 @@
-// Non-linear state graph visualization — swimlane style, one column per agent domain
-import React from 'react';
+// Non-linear state graph visualization — swimlanes from GRAPH_PLANNED manifest or defaults
+import React, { useMemo } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import type { AgentDomain, InvestigationStatus, TaskProgressEvent } from '@/types/api';
+import type { InvestigationStatus, TaskProgressEvent } from '@/types/api';
+import { buildLanesFromEvents } from '@/utils/graphLanes';
 
 interface Props {
   currentStatus: InvestigationStatus;
   events:        TaskProgressEvent[];
 }
-
-type Lane = { domain: AgentDomain; label: string; color: string };
-
-const LANES: Lane[] = [
-  { domain: 'supervisor', label: 'Supervisor',       color: colors.brand[500] },
-  { domain: 'telemetry',  label: 'Telemetry / RCA',  color: '#3B82F6' },
-  { domain: 'code',       label: 'Code / Fix',        color: '#8B5CF6' },
-  { domain: 'context',    label: 'Context / Docs',    color: '#10B981' },
-];
 
 const STATUS_PHASE: Partial<Record<InvestigationStatus, string>> = {
   QUEUED:           'Queued',
@@ -38,6 +30,7 @@ const STATUS_PHASE: Partial<Record<InvestigationStatus, string>> = {
 
 export function InvestigationGraph({ currentStatus, events }: Props) {
   const phase = STATUS_PHASE[currentStatus] ?? currentStatus;
+  const lanes = useMemo(() => buildLanesFromEvents(events), [events]);
 
   return (
     <Card padding={0}>
@@ -54,7 +47,7 @@ export function InvestigationGraph({ currentStatus, events }: Props) {
         style={Platform.OS === 'web' ? styles.swimlaneScrollWeb : undefined}
       >
         <View style={styles.swimlanes}>
-          {LANES.map((lane) => {
+          {lanes.map((lane) => {
             const laneEvents = events.filter((e) => e.agent_domain === lane.domain);
             return (
               <View key={lane.domain} style={styles.lane}>

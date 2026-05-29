@@ -32,4 +32,18 @@ func TestValidateEnabledDomains(t *testing.T) {
 	if err := ValidateEnabledDomains([]string{"telemetry", "supervisor"}); err != nil {
 		t.Fatalf("supervisor should be ignored: %v", err)
 	}
+	if err := ValidateEnabledDomains([]string{"communications"}); err != nil {
+		t.Fatalf("communications should be valid: %v", err)
+	}
+}
+
+func TestNew_WithCommunications(t *testing.T) {
+	reg := New([]string{"telemetry", "communications"})
+	enabled := reg.EnabledAgents()
+	if len(enabled) != 2 {
+		t.Fatalf("want 2 enabled, got %d", len(enabled))
+	}
+	if enabled[1].Domain != orchestration.DomainCommunications {
+		t.Fatalf("second domain: got %s", enabled[1].Domain)
+	}
 }

@@ -97,7 +97,11 @@ func (r *Runner) Run(ctx context.Context, g InvestigationGraph, rc RunContext) e
 
 	emit(supervisorDelay("plan_done"), "AGENT_COMPLETE", orchestration.DomainSupervisor,
 		map[string]any{"message": rc.timelineMessage(2)})
+	setStatus(orchestration.StatusPlanning)
 	saveCP(orchestration.StatusPlanning, "supervisor_plan_done")
+
+	emit(0, "GRAPH_PLANNED", orchestration.DomainSupervisor, manifestPayload(g, r.Registry))
+	saveCP(orchestration.StatusPlanning, "graph_planned")
 
 	setStatus(orchestration.StatusRetrieving)
 
@@ -115,9 +119,10 @@ func (r *Runner) Run(ctx context.Context, g InvestigationGraph, rc RunContext) e
 	enabledCount := len(startNodes)
 
 	for _, n := range startNodes {
+		msg := rc.timelineMessage(n.TimelineIndex)
 		emit(agentStartDelay(n.AgentDomain), "AGENT_STARTED", n.AgentDomain, map[string]any{
 			"progress_pct": DefaultStartProgressPct(n.AgentDomain),
-			"message":      rc.timelineMessage(domainTimelineIndex(n.AgentDomain)),
+			"message":      msg,
 		})
 		r.Checkpoints.MarkNodeComplete(rc.TaskID, n.ID, orchestration.StatusRetrieving)
 	}
@@ -222,6 +227,8 @@ func agentStartDelay(d orchestration.AgentDomain) time.Duration {
 		return 180 * time.Millisecond
 	case orchestration.DomainContext:
 		return 160 * time.Millisecond
+	case orchestration.DomainCommunications:
+		return 140 * time.Millisecond
 	default:
 		return 100 * time.Millisecond
 	}
@@ -235,6 +242,8 @@ func agentCompleteDelay(d orchestration.AgentDomain) time.Duration {
 		return 120 * time.Millisecond
 	case orchestration.DomainContext:
 		return 100 * time.Millisecond
+	case orchestration.DomainCommunications:
+		return 90 * time.Millisecond
 	default:
 		return 100 * time.Millisecond
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/sushanth262/AURA/aura-backend/internal/config"
+	"github.com/sushanth262/AURA/aura-backend/internal/orchestration/registry"
 	"github.com/sushanth262/AURA/aura-backend/internal/supervisor"
 )
 
@@ -25,6 +26,9 @@ func main() {
 	}
 	log.Printf("aura-supervisor listening on %s (GRAPH_ENGINE_MODE=%q ENABLED_AGENTS=%v WORKER_URL=%q)",
 		cfg.HTTPAddr, cfg.GraphEngineMode, cfg.EnabledAgents, cfg.WorkerURL)
+	if err := registry.ValidateEnabledDomains(cfg.EnabledAgents); err != nil {
+		log.Printf("aura-supervisor warning: ENABLED_AGENTS: %v", err)
+	}
 	if err := http.ListenAndServe(cfg.HTTPAddr, api.Router()); err != nil {
 		log.Fatal(err)
 	}

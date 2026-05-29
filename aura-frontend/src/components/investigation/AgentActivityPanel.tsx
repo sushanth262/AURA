@@ -5,28 +5,16 @@ import { Card } from '@/components/ui/Card';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
-import type { AgentDomain, TaskProgressEvent, WSEventType } from '@/types/api';
+import type { TaskProgressEvent, WSEventType } from '@/types/api';
+import { domainColor, domainLabel } from '@/utils/graphLanes';
 
 interface Props {
   events: TaskProgressEvent[];
 }
 
-const DOMAIN_LABEL: Record<AgentDomain, string> = {
-  telemetry: 'Telemetry / RCA',
-  code:      'Code / Fix',
-  context:   'Context / Docs',
-  supervisor:'Supervisor',
-};
-
-const DOMAIN_COLOR: Record<AgentDomain, string> = {
-  telemetry: '#3B82F6',  // blue
-  code:      '#8B5CF6',  // violet
-  context:   '#10B981',  // emerald
-  supervisor:colors.brand[500],
-};
-
 const EVENT_LABEL: Partial<Record<WSEventType, string>> = {
   TASK_CLAIMED:        'task claimed',
+  GRAPH_PLANNED:       'graph planned',
   AGENT_STARTED:       'started',
   AGENT_COMPLETE:      'complete',
   SYNTHESIS_STARTED:   'synthesizing',
@@ -42,7 +30,7 @@ function dot(color: string) {
 
 export function AgentActivityPanel({ events }: Props) {
   const visible = events.filter((e) =>
-    ['TASK_CLAIMED', 'AGENT_STARTED', 'AGENT_COMPLETE', 'SYNTHESIS_STARTED', 'SYNTHESIS_COMPLETE',
+    ['TASK_CLAIMED', 'GRAPH_PLANNED', 'AGENT_STARTED', 'AGENT_COMPLETE', 'SYNTHESIS_STARTED', 'SYNTHESIS_COMPLETE',
      'HITL_REQUESTED', 'REMEDIATION_STARTED', 'TASK_FAILED'].includes(e.event_type),
   );
 
@@ -54,8 +42,8 @@ export function AgentActivityPanel({ events }: Props) {
       ) : (
         visible.slice().reverse().map((e, i) => {
           const domain = e.agent_domain ?? 'supervisor';
-          const color  = DOMAIN_COLOR[domain] ?? colors.brand[500];
-          const label  = DOMAIN_LABEL[domain] ?? domain;
+          const color  = domainColor(domain);
+          const label  = domainLabel(domain);
           const verb   = EVENT_LABEL[e.event_type] ?? String(e.event_type ?? 'event').toLowerCase();
           const tsRaw  = e.timestamp ? new Date(e.timestamp) : null;
           const ts     = tsRaw && !Number.isNaN(tsRaw.getTime())

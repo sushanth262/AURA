@@ -6,10 +6,11 @@ import "time"
 type AgentDomain string
 
 const (
-	DomainSupervisor AgentDomain = "supervisor"
-	DomainTelemetry  AgentDomain = "telemetry"
-	DomainCode       AgentDomain = "code"
-	DomainContext    AgentDomain = "context"
+	DomainSupervisor     AgentDomain = "supervisor"
+	DomainTelemetry      AgentDomain = "telemetry"
+	DomainCode           AgentDomain = "code"
+	DomainContext        AgentDomain = "context"
+	DomainCommunications AgentDomain = "communications"
 )
 
 // InvestigationStatus matches aura-frontend InvestigationStatus / supervisor store values.

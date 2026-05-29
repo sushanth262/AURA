@@ -123,6 +123,8 @@ func DefaultStartProgressPct(domain orchestration.AgentDomain) int {
 		return 21
 	case orchestration.DomainContext:
 		return 68
+	case orchestration.DomainCommunications:
+		return 45
 	default:
 		return 10
 	}

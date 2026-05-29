@@ -33,6 +33,7 @@ func Plan(reg *registry.Registry, policies orchestration.Policies) (Investigatio
 	for i, def := range enabled {
 		startID := fmt.Sprintf("%s_start", def.Domain)
 		doneID := fmt.Sprintf("%s_done", def.Domain)
+		timelineIdx := 3 + i
 		nodes = append(nodes,
 			Node{
 				ID:            startID,
@@ -40,7 +41,7 @@ func Plan(reg *registry.Registry, policies orchestration.Policies) (Investigatio
 				AgentDomain:   def.Domain,
 				ParallelGroup: parallelRetrieve,
 				Connector:     primaryConnector(def),
-				TimelineIndex: domainTimelineIndex(def.Domain),
+				TimelineIndex: timelineIdx,
 			},
 			Node{
 				ID:            doneID,

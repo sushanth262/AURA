@@ -7,39 +7,9 @@ import (
 	"github.com/sushanth262/AURA/aura-backend/internal/orchestration"
 )
 
-// AgentDefinition describes a built-in agent and its connectors.
-type AgentDefinition struct {
-	Domain      orchestration.AgentDomain
-	Connectors  []string
-	RAGNamespaces []string
-	Enabled     bool
-}
-
 // Registry holds the agents available for graph planning.
 type Registry struct {
 	agents map[orchestration.AgentDomain]AgentDefinition
-}
-
-// builtinAgents is the canonical catalog (Phase 2 adds communications).
-var builtinAgents = []AgentDefinition{
-	{
-		Domain:     orchestration.DomainTelemetry,
-		Connectors: []string{"grafana"},
-		RAGNamespaces: []string{"incident_memory", "runbooks"},
-		Enabled:    true,
-	},
-	{
-		Domain:     orchestration.DomainCode,
-		Connectors: []string{"github"},
-		RAGNamespaces: []string{"source_code", "incident_memory"},
-		Enabled:    true,
-	},
-	{
-		Domain:     orchestration.DomainContext,
-		Connectors: []string{"jira"},
-		RAGNamespaces: []string{"runbooks", "incident_memory"},
-		Enabled:    true,
-	},
 }
 
 // DefaultRegistry enables telemetry, code, and context.
@@ -78,13 +48,8 @@ func New(enabledDomains []string) *Registry {
 
 // EnabledAgents returns definitions with Enabled=true in stable domain order.
 func (r *Registry) EnabledAgents() []AgentDefinition {
-	order := []orchestration.AgentDomain{
-		orchestration.DomainTelemetry,
-		orchestration.DomainCode,
-		orchestration.DomainContext,
-	}
-	out := make([]AgentDefinition, 0, len(order))
-	for _, d := range order {
+	out := make([]AgentDefinition, 0, len(catalogOrder))
+	for _, d := range catalogOrder {
 		if def, ok := r.agents[d]; ok && def.Enabled {
 			out = append(out, def)
 		}
@@ -98,12 +63,20 @@ func (r *Registry) Lookup(domain orchestration.AgentDomain) (AgentDefinition, bo
 	return def, ok && def.Enabled
 }
 
+// KnownDomains returns all built-in agent domain names (excluding supervisor).
+func KnownDomains() []string {
+	out := make([]string, len(catalogOrder))
+	for i, d := range catalogOrder {
+		out[i] = string(d)
+	}
+	return out
+}
+
 // ValidateEnabledDomains returns an error if any name is unknown.
 func ValidateEnabledDomains(domains []string) error {
-	known := map[string]struct{}{
-		string(orchestration.DomainTelemetry): {},
-		string(orchestration.DomainCode):      {},
-		string(orchestration.DomainContext):   {},
+	known := make(map[string]struct{}, len(catalogOrder))
+	for _, d := range catalogOrder {
+		known[string(d)] = struct{}{}
 	}
 	for _, d := range domains {
 		d = strings.ToLower(strings.TrimSpace(d))

@@ -59,7 +59,7 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 | `WORKER_URL` | _(empty)_ | **aura-worker** base URL; if empty, timeline skips connector snapshots. |
 | `WORKER_SOURCES` | `grafana,github,jira` | Which connector IDs supervisor may call. |
 | `GRAPH_ENGINE_MODE` | `engine` | `engine` runs the orchestration graph; `legacy` uses the original `RunMockScenario` timeline. |
-| `ENABLED_AGENTS` | `telemetry,code,context` | Agent domains included in the investigation graph. |
+| `ENABLED_AGENTS` | `telemetry,code,context` | Agent domains in the graph; add `communications` for a fifth swimlane (Phase 2). |
 | `MIN_AGENTS_FOR_SYNTHESIS` | `1` | Minimum successful agent nodes before synthesis. |
 | `SYNTHESIS_JOIN` | `any_success` | `any_success` or `all_required` join policy into synthesis. |
 | `INTERNAL_SHARED_SECRET` | _(empty)_ | Optional gate on `/internal/v1/…` |

@@ -15,6 +15,7 @@ timeline_labels:
   - "Telemetry — querying…"
   - "Code — querying…"
   - "Context — querying…"
+  - "Communications — scanning channels…"
 
 # Mock connector payloads (Grafana-style metrics, GitHub commits, Jira issues) — WIREFRAMES Screen 2 narrative.
 source_mocks:
@@ -61,3 +62,14 @@ source_mocks:
           - "CHG-4412 gateway config rollout"
         comments:
           - "Symptoms started ~14:30 UTC; correlated with deploy train."
+  slack:
+    mock: true
+    channels:
+      - name: "#incidents"
+        messages:
+          - ts: "2026-05-03T14:31:00Z"
+            user: oncall-payments
+            text: "Seeing 5xx spike on payments-api checkout — matches gateway deploy window."
+          - ts: "2026-05-03T14:33:00Z"
+            user: jdoe
+            text: "Pager fired for INC-2847; correlating with CHG-4412 rollout."

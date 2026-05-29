@@ -6,25 +6,14 @@ import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import type { AgentDomain, AgentSummary, Finding } from '@/types/api';
+import { domainColor, domainLabel } from '@/utils/graphLanes';
 
 interface Props {
   summaries: AgentSummary[];
   findings:  Finding[];
 }
 
-const DOMAIN_ORDER: AgentDomain[] = ['telemetry', 'code', 'context'];
-const DOMAIN_LABEL: Record<AgentDomain, string> = {
-  telemetry: 'Telemetry',
-  code:      'Code',
-  context:   'Context',
-  supervisor:'Supervisor',
-};
-const DOMAIN_COLOR: Record<AgentDomain, string> = {
-  telemetry: '#3B82F6',
-  code:      '#8B5CF6',
-  context:   '#10B981',
-  supervisor:colors.brand[500],
-};
+const DEFAULT_TAB_ORDER: AgentDomain[] = ['telemetry', 'code', 'context', 'communications'];
 const STATUS_TINT: Record<string, string> = {
   SUCCESS: colors.tints.success.bg,
   PARTIAL: colors.tints.warning.bg,
@@ -33,7 +22,11 @@ const STATUS_TINT: Record<string, string> = {
 };
 
 export function AgentEvidenceTabs({ summaries, findings }: Props) {
-  const [activeTab, setActiveTab] = useState<AgentDomain>('telemetry');
+  const tabOrder = DEFAULT_TAB_ORDER.filter(
+    (d) => summaries.some((s) => s.domain === d) || findings.some((f) => f.domain === d),
+  );
+  const tabs = tabOrder.length > 0 ? tabOrder : DEFAULT_TAB_ORDER.slice(0, 3);
+  const [activeTab, setActiveTab] = useState<AgentDomain>(tabs[0] ?? 'telemetry');
 
   const summary  = summaries.find((s) => s.domain === activeTab);
   const tabFinds = findings.filter((f) => f.domain === activeTab);
@@ -42,17 +35,19 @@ export function AgentEvidenceTabs({ summaries, findings }: Props) {
     <Card padding={0}>
       {/* Tab bar */}
       <View style={styles.tabBar}>
-        {DOMAIN_ORDER.map((d) => {
+        {tabs.map((d) => {
           const active = d === activeTab;
           const sum    = summaries.find((s) => s.domain === d);
+          const color  = domainColor(d);
+          const label  = domainLabel(d);
           return (
             <Pressable
               key={d}
               onPress={() => setActiveTab(d)}
-              style={[styles.tab, active && { borderBottomColor: DOMAIN_COLOR[d] }]}
+              style={[styles.tab, active && { borderBottomColor: color }]}
             >
-              <Text style={[styles.tabText, active && { color: DOMAIN_COLOR[d] }]}>
-                {DOMAIN_LABEL[d]}
+              <Text style={[styles.tabText, active && { color }]}>
+                {label}
               </Text>
               {sum && (
                 <View style={[styles.statusDot, { backgroundColor: STATUS_TINT[sum.status] }]} />

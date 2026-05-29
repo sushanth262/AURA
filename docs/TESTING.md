@@ -106,7 +106,7 @@ See [SUPERVISOR_AGENT_POOL_PLAN.md](./SUPERVISOR_AGENT_POOL_PLAN.md) for impleme
 |-------|--------|-----------|--------------|
 | **0** | Done | `go test ./internal/config/... ./internal/orchestration/contract/... ./internal/orchestration/registry/... ./internal/orchestration -count=1` | — |
 | **1** | Done | `go test ./internal/orchestration/graph/... -count=1 -v` | Graph engine + create incident (below) |
-| **2** | Planned | _(add commands here)_ | Dynamic `graph_manifest` / UI lanes |
+| **2** | Done | `go test ./internal/orchestration/graph/... ./internal/orchestration/registry/... -count=1 -v` | Enable comms: `ENABLED_AGENTS=telemetry,code,context,communications`; 5 swimlanes after GRAPH_PLANNED |
 | **3** | Planned | _(add commands here)_ | `POST /v1/agents/{domain}/execute` |
 | **4** | Planned | _(add commands here)_ | Communications agent |
 | **5–7** | Planned | _(add commands here)_ | MCP live, Redis checkpoint, RAG/security |
