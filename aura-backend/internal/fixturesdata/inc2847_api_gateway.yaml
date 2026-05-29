@@ -73,3 +73,19 @@ source_mocks:
           - ts: "2026-05-03T14:33:00Z"
             user: jdoe
             text: "Pager fired for INC-2847; correlating with CHG-4412 rollout."
+  teams:
+    mock: true
+    channels:
+      - name: "Payments On-Call"
+        messages:
+          - ts: "2026-05-03T14:32:00Z"
+            user: pagerduty-bot
+            text: "ONCALL_PING: payments-api error budget burn — page sent to oncall-payments."
+  email:
+    mock: true
+    threads:
+      - subject: "Re: checkout failures — payments-api"
+        messages:
+          - ts: "2026-05-03T14:30:00Z"
+            from: ops-alerts@example.com
+            body: "Automated alert: elevated 5xx on payments-api checkout route."

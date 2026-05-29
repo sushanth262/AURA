@@ -57,7 +57,7 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 | `AUTH_DEV_MOCK`, `AUTH_DEV_JWT_SECRET` | _(same as BFF)_ | Validates bearer on investigation WebSocket. |
 | `POLICY_VERSION` | `stub-v1` | Echoed in synthesis payloads |
 | `WORKER_URL` | _(empty)_ | **aura-worker** base URL; if empty, timeline skips connector snapshots. |
-| `WORKER_SOURCES` | `grafana,github,jira` | Which connector IDs supervisor may call. |
+| `WORKER_SOURCES` | `grafana,github,jira` | Which connector IDs supervisor may call. Add `slack,teams,email` when `communications` is enabled. |
 | `GRAPH_ENGINE_MODE` | `engine` | `engine` runs the orchestration graph; `legacy` uses the original `RunMockScenario` timeline. |
 | `ENABLED_AGENTS` | `telemetry,code,context` | Agent domains in the graph; add `communications` for a fifth swimlane (Phase 2). |
 | `MIN_AGENTS_FOR_SYNTHESIS` | `1` | Minimum successful agent nodes before synthesis. |
@@ -70,7 +70,7 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `HTTP_ADDR` | `:8083` | Listen |
-| `WORKER_ENABLED_SOURCES` | `grafana,github,jira` | Routes exposed by **this** process (subset or reorder later per replica). |
+| `WORKER_ENABLED_SOURCES` | `grafana,github,jira` | Routes exposed by **this** process (subset or reorder later per replica). Add `slack,teams,email` for communications agent. |
 
 **Execute API (Phase 3):** `POST /v1/agents/{domain}/execute` with `AgentTask` body → `AgentResult`. Legacy `GET /v1/sources/{source}?scenario_key=…` remains for inline mode.
 

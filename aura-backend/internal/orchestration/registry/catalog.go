@@ -48,7 +48,7 @@ var builtinAgents = []AgentDefinition{
 		Domain:        orchestration.DomainCommunications,
 		Label:         "Communications",
 		Color:         "#F59E0B",
-		Connectors:    []string{"slack"},
+		Connectors:    []string{"slack", "teams", "email"},
 		RAGNamespaces: []string{"incident_memory"},
 	},
 }

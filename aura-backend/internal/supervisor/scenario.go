@@ -70,6 +70,9 @@ func runGraphEngine(cfg config.Config, st *Store, hub *WSClients, inv *Investiga
 		Sleep:         nil,
 		FetchSnapshot: wf,
 		Emit: func(ev orchestration.ProgressEvent) {
+			if ev.EventType == "SYNTHESIS_COMPLETE" && ev.Payload != nil {
+				st.SetSynthesis(ev.TaskID, ev.Payload)
+			}
 			hub.Broadcast(ev.TaskID, progressEventToMap(ev))
 		},
 		UpdateStatus: func(taskID string, status orchestration.InvestigationStatus) bool {

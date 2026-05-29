@@ -62,7 +62,8 @@ func (e *Executor) Run(ctx context.Context, task orchestration.AgentTask, spec o
 		connectors = spec.Connectors
 	}
 
-	var connectorSnap map[string]any
+	var connectorSnaps = make(map[string]map[string]any)
+	var lastSnap map[string]any
 	for _, conn := range connectors {
 		if !orchregistry.ConnectorAllowed(spec, conn) {
 			continue
@@ -78,7 +79,8 @@ func (e *Executor) Run(ctx context.Context, task orchestration.AgentTask, spec o
 			}, err
 		}
 		if len(raw) > 0 {
-			connectorSnap = raw
+			connectorSnaps[conn] = raw
+			lastSnap = raw
 		}
 	}
 
@@ -89,10 +91,10 @@ func (e *Executor) Run(ctx context.Context, task orchestration.AgentTask, spec o
 	})
 
 	e.stage(StageSecurity)
-	redacted := connectorSnap
-	if connectorSnap != nil && e.Security != nil {
+	redacted := lastSnap
+	if lastSnap != nil && e.Security != nil {
 		var err error
-		redacted, err = e.Security.Redact(ctx, connectorSnap, primaryConnector(spec))
+		redacted, err = e.Security.Redact(ctx, lastSnap, primaryConnector(spec))
 		if err != nil {
 			return orchestration.AgentResult{
 				Domain:      task.Domain,
@@ -103,7 +105,7 @@ func (e *Executor) Run(ctx context.Context, task orchestration.AgentTask, spec o
 		}
 	}
 
-	findings := buildFindings(task.Domain, redacted)
+	findings := buildFindings(task.Domain, connectorSnaps)
 	return orchestration.AgentResult{
 		Domain:               task.Domain,
 		TaskID:               task.TaskID,
@@ -149,7 +151,7 @@ func (e errConnectorDenied) Error() string {
 	return "connector " + e.connector + " not allowed for agent " + e.agent
 }
 
-func buildFindings(domain orchestration.AgentDomain, snap map[string]any) []orchestration.Finding {
+func buildFindings(domain orchestration.AgentDomain, connectorSnaps map[string]map[string]any) []orchestration.Finding {
 	now := time.Now().UTC().Format(time.RFC3339)
 	switch domain {
 	case orchestration.DomainTelemetry:
@@ -183,20 +185,7 @@ func buildFindings(domain orchestration.AgentDomain, snap map[string]any) []orch
 			},
 		}
 	case orchestration.DomainCommunications:
-		desc := "Incident discussed in team channels during the incident window."
-		if snap != nil {
-			desc = "Channel mentions correlate outage discussion with incident timeline."
-		}
-		return []orchestration.Finding{
-			{
-				FindingID:   "f-comms-1",
-				Domain:      domain,
-				Type:        "CHANNEL_ALERT_MENTION",
-				Description: desc,
-				Confidence:  0.71,
-				TimelineTS:  now,
-			},
-		}
+		return buildCommunicationsFindings(connectorSnaps)
 	default:
 		return []orchestration.Finding{
 			{

@@ -77,6 +77,18 @@ func (s *Store) UpdateStatus(taskID, status string) bool {
 	return true
 }
 
+func (s *Store) SetSynthesis(taskID string, payload map[string]any) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.byTask[taskID]
+	if !ok {
+		return false
+	}
+	v.SynthesisPayload = payload
+	v.UpdatedAt = time.Now()
+	return true
+}
+
 func (s *Store) History(page, perPage int) HistoryPage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -110,7 +110,7 @@ See [SUPERVISOR_AGENT_POOL_PLAN.md](./SUPERVISOR_AGENT_POOL_PLAN.md) for impleme
 | **1** | Done | `go test ./internal/orchestration/graph/... -count=1 -v` | Graph engine + create incident (below) |
 | **2** | Done | `go test ./internal/orchestration/graph/... ./internal/orchestration/registry/... -count=1 -v` | Enable comms: `ENABLED_AGENTS=telemetry,code,context,communications`; 5 swimlanes after GRAPH_PLANNED |
 | **3** | Done | `go test ./internal/workersvc/... ./internal/supervisor/... -count=1 -v` | Worker execute + supervisor `AGENT_EXECUTION_MODE=worker` (below) |
-| **4** | Planned | _(add commands here)_ | Communications agent |
+| **4** | Done | `go test ./internal/orchestration/graph/... ./internal/workersvc/pipeline/... -count=1 -v -run 'FuseSynthesis|Communications|FourParallel'` | Comms enabled: 5 lanes, 3 comms finding types, evidence includes Communications tab |
 | **5–7** | Planned | _(add commands here)_ | MCP live, Redis checkpoint, RAG/security |
 
 ### Phase 1 — manual smoke (graph engine)
@@ -196,6 +196,25 @@ $env:GRAPH_ENGINE_MODE = "engine"
 ```
 
 Default `AGENT_EXECUTION_MODE=inline` keeps the snapshot fetcher path (`GET /v1/sources/{source}`).
+
+### Phase 4 — manual smoke (communications connectors)
+
+Requires communications agent and comms connectors on worker:
+
+```powershell
+# Worker
+$env:WORKER_ENABLED_SOURCES = "grafana,github,jira,slack,teams,email"
+go run ./cmd/aura-worker
+
+# Supervisor
+$env:ENABLED_AGENTS = "telemetry,code,context,communications"
+$env:WORKER_SOURCES = "grafana,github,jira,slack,teams,email"
+$env:WORKER_URL = "http://127.0.0.1:8083"
+$env:AGENT_EXECUTION_MODE = "worker"
+go run ./cmd/aura-supervisor
+```
+
+**Verify:** findings timeline includes `CHANNEL_ALERT_MENTION`, `ONCALL_PING`, `EMAIL_THREAD`; evidence narrative has **Communications Agent**; `confidence_breakdown.timeline_overlap_boost` is `0.05` when comms timestamps fall inside telemetry spike window.
 
 ---
 

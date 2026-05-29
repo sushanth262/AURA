@@ -1,6 +1,6 @@
 # Supervisor & Configurable Agent Worker Pool — Implementation Plan
 
-**Status:** In progress (Phase 0–2 done; Phase 3 implemented)  
+**Status:** In progress (Phase 0–3 done; Phase 4 implemented)  
 **Last updated:** 2026-05-28  
 **Related:** [ARCHITECTURE.md](./ARCHITECTURE.md), [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7
 
@@ -20,6 +20,7 @@ This document describes a phased plan to implement the **Supervisor orchestrator
 | **Graph engine** | `internal/orchestration/graph` + `GRAPH_ENGINE_MODE=engine`; emits `GRAPH_PLANNED` with dynamic lanes |
 | **Phase 2** | Communications agent (opt-in via `ENABLED_AGENTS`); UI swimlanes from `graph_manifest` |
 | **Phase 3** | Worker `POST /v1/agents/{domain}/execute`; supervisor `AGENT_EXECUTION_MODE=worker` |
+| **Phase 4** | Communications connectors (slack/teams/email); synthesis fusion + agent_agreement |
 | **Target** | [ARCHITECTURE.md](./ARCHITECTURE.md) and [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7 |
 
 ---

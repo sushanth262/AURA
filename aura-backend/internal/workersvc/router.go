@@ -10,7 +10,7 @@ import (
 	"github.com/sushanth262/AURA/aura-backend/internal/config"
 )
 
-var allowedSources = []string{"grafana", "github", "jira", "slack"}
+var allowedSources = []string{"grafana", "github", "jira", "slack", "teams", "email"}
 
 type Server struct {
 	Cfg config.Config

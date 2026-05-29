@@ -57,6 +57,15 @@ func (r *Registry) EnabledAgents() []AgentDefinition {
 	return out
 }
 
+// HasDomain reports whether domain is enabled in this registry.
+func (r *Registry) HasDomain(domain orchestration.AgentDomain) bool {
+	if r == nil {
+		return false
+	}
+	def, ok := r.agents[domain]
+	return ok && def.Enabled
+}
+
 // Lookup returns a definition by domain.
 func (r *Registry) Lookup(domain orchestration.AgentDomain) (AgentDefinition, bool) {
 	def, ok := r.agents[domain]

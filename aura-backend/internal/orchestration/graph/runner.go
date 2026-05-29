@@ -165,7 +165,7 @@ func (r *Runner) Run(ctx context.Context, g InvestigationGraph, rc RunContext) e
 		setStatus(orchestration.StatusSynthesis)
 	}
 
-	emit(200*time.Millisecond, "SYNTHESIS_COMPLETE", "", BuildSynthesisPayload(rc))
+	emit(200*time.Millisecond, "SYNTHESIS_COMPLETE", "", FuseSynthesis(rc, results, r.Registry))
 	saveCP(orchestration.StatusSynthesis, "synthesis")
 
 	setStatus(orchestration.StatusHITLPending)
@@ -212,6 +212,11 @@ func agentTaskFromNode(n Node, rc RunContext) orchestration.AgentTask {
 	if n.Connector != "" {
 		connectors = []string{n.Connector}
 	}
+	if n.AgentDomain == orchestration.DomainCommunications {
+		if spec, ok := registry.BuiltinCatalog(n.AgentDomain); ok {
+			connectors = spec.Connectors
+		}
+	}
 	return orchestration.AgentTask{
 		IncidentID: rc.IncidentID,
 		TaskID:     rc.TaskID,
@@ -235,6 +240,8 @@ func domainTimelineIndex(d orchestration.AgentDomain) int {
 		return 4
 	case orchestration.DomainContext:
 		return 5
+	case orchestration.DomainCommunications:
+		return 6
 	default:
 		return 0
 	}

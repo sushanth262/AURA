@@ -60,4 +60,6 @@ type Investigation struct {
 	Status     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	// SynthesisPayload is set when graph engine emits SYNTHESIS_COMPLETE (Phase 4+).
+	SynthesisPayload map[string]any
 }
