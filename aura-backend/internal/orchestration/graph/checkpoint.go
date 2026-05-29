@@ -13,6 +13,7 @@ type CheckpointStore interface {
 	Save(cp orchestration.GraphCheckpoint)
 	MarkNodeComplete(taskID, nodeID string, status orchestration.InvestigationStatus)
 	MarkNodeFailed(taskID, nodeID string)
+	SaveAgentResult(taskID string, domain orchestration.AgentDomain, result orchestration.AgentResult)
 }
 
 // MemoryCheckpointStore is an in-process CheckpointStore for dev and tests.
@@ -60,6 +61,21 @@ func (s *MemoryCheckpointStore) MarkNodeFailed(taskID, nodeID string) {
 		cp.TaskID = taskID
 	}
 	cp.FailedNodes = appendUnique(cp.FailedNodes, nodeID)
+	cp.LastUpdated = time.Now().UTC()
+	s.data[taskID] = cp
+}
+
+func (s *MemoryCheckpointStore) SaveAgentResult(taskID string, domain orchestration.AgentDomain, result orchestration.AgentResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := s.data[taskID]
+	if cp.TaskID == "" {
+		cp.TaskID = taskID
+	}
+	if cp.AgentResults == nil {
+		cp.AgentResults = make(map[string]orchestration.AgentResult)
+	}
+	cp.AgentResults[string(domain)] = result
 	cp.LastUpdated = time.Now().UTC()
 	s.data[taskID] = cp
 }

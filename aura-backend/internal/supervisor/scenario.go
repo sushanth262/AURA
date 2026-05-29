@@ -49,6 +49,11 @@ func runGraphEngine(cfg config.Config, st *Store, hub *WSClients, inv *Investiga
 	minAgents, join := cfg.OrchestrationPolicies()
 	policies := orchestration.PoliciesFromConfig(minAgents, join)
 
+	cpStore, err := graph.NewCheckpointStore(cfg)
+	if err != nil {
+		cpStore = graph.NewMemoryCheckpointStore()
+	}
+
 	rc := graph.RunContext{
 		TaskID:         inv.TaskID,
 		IncidentID:     inv.IncidentID,
@@ -66,7 +71,7 @@ func runGraphEngine(cfg config.Config, st *Store, hub *WSClients, inv *Investiga
 	runner := &graph.Runner{
 		Policies:      policies,
 		Registry:      reg,
-		Checkpoints:   graph.NewMemoryCheckpointStore(),
+		Checkpoints:   cpStore,
 		Sleep:         nil,
 		FetchSnapshot: wf,
 		Emit: func(ev orchestration.ProgressEvent) {

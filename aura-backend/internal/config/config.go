@@ -62,6 +62,11 @@ type Config struct {
 	// Supervisor agent dispatch: "inline" (snapshot fetcher) or "worker" (POST execute).
 	AgentExecutionMode string
 
+	// Checkpoint persistence: "memory" (default) or "redis".
+	CheckpointBackend string
+	RedisURL          string
+	CheckpointKeyPrefix string
+
 	// Connector runtime (aura-worker, Phase 5+).
 	ConnectorGrafanaMode string // fixture | live
 	GrafanaURL           string
@@ -88,6 +93,9 @@ func Load() Config {
 		MinAgentsForSynthesis: getenvInt("MIN_AGENTS_FOR_SYNTHESIS", 1),
 		SynthesisJoin:         strings.ToLower(strings.TrimSpace(getenv("SYNTHESIS_JOIN", "any_success"))),
 		AgentExecutionMode:    strings.ToLower(strings.TrimSpace(getenv("AGENT_EXECUTION_MODE", "inline"))),
+		CheckpointBackend:     strings.ToLower(strings.TrimSpace(getenv("CHECKPOINT_BACKEND", "memory"))),
+		RedisURL:              strings.TrimSpace(getenv("REDIS_URL", "")),
+		CheckpointKeyPrefix:   strings.TrimSpace(getenv("CHECKPOINT_KEY_PREFIX", "")),
 		ConnectorGrafanaMode:  strings.ToLower(strings.TrimSpace(getenv("CONNECTOR_GRAFANA_MODE", "fixture"))),
 		GrafanaURL:            strings.TrimSpace(getenv("GRAFANA_URL", "")),
 	}

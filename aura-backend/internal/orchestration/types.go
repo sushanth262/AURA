@@ -94,5 +94,7 @@ type GraphCheckpoint struct {
 	FailedNodes     []string            `json:"failed_nodes"`
 	GraphVersion    int                 `json:"graph_version"`
 	LastUpdated     time.Time           `json:"last_updated"`
-	PartialEvidence map[string]any      `json:"partial_evidence,omitempty"`
+	PartialEvidence map[string]any                `json:"partial_evidence,omitempty"`
+	// AgentResults stores successful agent outputs for resume (key = agent domain).
+	AgentResults map[string]AgentResult `json:"agent_results,omitempty"`
 }

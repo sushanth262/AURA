@@ -26,6 +26,15 @@ func TestLoad_ConnectorGrafanaDefaults(t *testing.T) {
 	}
 }
 
+func TestLoad_CheckpointBackendDefaults(t *testing.T) {
+	os.Unsetenv("CHECKPOINT_BACKEND")
+	os.Unsetenv("REDIS_URL")
+	c := Load()
+	if c.CheckpointBackend != "memory" {
+		t.Fatalf("CheckpointBackend: got %q", c.CheckpointBackend)
+	}
+}
+
 func TestOrchestrationPolicies(t *testing.T) {
 	c := Config{MinAgentsForSynthesis: 2, SynthesisJoin: "all_required"}
 	min, join := c.OrchestrationPolicies()

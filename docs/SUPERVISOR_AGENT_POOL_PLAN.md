@@ -1,6 +1,6 @@
 # Supervisor & Configurable Agent Worker Pool — Implementation Plan
 
-**Status:** In progress (Phase 0–4 done; Phase 5 implemented)  
+**Status:** In progress (Phase 0–5 done; Phase 6 implemented)  
 **Last updated:** 2026-05-28  
 **Related:** [ARCHITECTURE.md](./ARCHITECTURE.md), [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7
 
@@ -22,6 +22,7 @@ This document describes a phased plan to implement the **Supervisor orchestrator
 | **Phase 3** | Worker `POST /v1/agents/{domain}/execute`; supervisor `AGENT_EXECUTION_MODE=worker` |
 | **Phase 4** | Communications connectors (slack/teams/email); synthesis fusion + agent_agreement |
 | **Phase 5** | MCP connector runtime with circuit breakers; `CONNECTOR_GRAFANA_MODE=live` |
+| **Phase 6** | Redis checkpoints + graph resume; `CHECKPOINT_BACKEND=redis` |
 | **Target** | [ARCHITECTURE.md](./ARCHITECTURE.md) and [PRODUCTION_SPECIFICATIONS.md](./PRODUCTION_SPECIFICATIONS.md) §5–§7 |
 
 ---

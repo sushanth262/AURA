@@ -24,8 +24,8 @@ func main() {
 		Hub:     hub,
 		Fetcher: fetcher,
 	}
-	log.Printf("aura-supervisor listening on %s (GRAPH_ENGINE_MODE=%q AGENT_EXECUTION_MODE=%q ENABLED_AGENTS=%v WORKER_URL=%q)",
-		cfg.HTTPAddr, cfg.GraphEngineMode, cfg.AgentExecutionMode, cfg.EnabledAgents, cfg.WorkerURL)
+	log.Printf("aura-supervisor listening on %s (GRAPH_ENGINE_MODE=%q AGENT_EXECUTION_MODE=%q CHECKPOINT_BACKEND=%q ENABLED_AGENTS=%v WORKER_URL=%q)",
+		cfg.HTTPAddr, cfg.GraphEngineMode, cfg.AgentExecutionMode, cfg.CheckpointBackend, cfg.EnabledAgents, cfg.WorkerURL)
 	if err := registry.ValidateEnabledDomains(cfg.EnabledAgents); err != nil {
 		log.Printf("aura-supervisor warning: ENABLED_AGENTS: %v", err)
 	}

@@ -113,7 +113,8 @@ See [SUPERVISOR_AGENT_POOL_PLAN.md](./SUPERVISOR_AGENT_POOL_PLAN.md) for impleme
 | **3** | Done | `go test ./internal/workersvc/... ./internal/supervisor/... -count=1 -v` | Worker execute + supervisor `AGENT_EXECUTION_MODE=worker` (below) |
 | **4** | Done | `go test ./internal/orchestration/graph/... ./internal/workersvc/pipeline/... -count=1 -v -run 'FuseSynthesis|Communications|FourParallel'` | Comms enabled: 5 lanes, 3 comms finding types, evidence includes Communications tab |
 | **5** | Done | `go test ./internal/connectors/... -count=1 -v` | Connector runtime + circuit breaker; optional Grafana live probe |
-| **6** | Planned | _(add commands here)_ | Redis checkpoint, resume |
+| **6** | Done | `go test ./internal/orchestration/graph/... -count=1 -v -run 'Resume|Redis|Checkpoint'` | Redis checkpoint + resume after supervisor restart |
+| **7** | Planned | _(add commands here)_ | RAG/security live services |
 
 ### Phase 1 — manual smoke (graph engine)
 
@@ -235,6 +236,24 @@ go run ./cmd/aura-worker
 ```
 
 Circuit open returns HTTP **503** `CIRCUIT_OPEN` on `/v1/sources/{source}` after repeated failures.
+
+### Phase 6 — manual smoke (Redis checkpoints)
+
+```powershell
+# Start Redis (Docker)
+docker run -d --name aura-redis -p 6379:6379 redis:7-alpine
+
+# Supervisor with Redis checkpoints
+$env:CHECKPOINT_BACKEND = "redis"
+$env:REDIS_URL = "redis://127.0.0.1:6379"
+$env:GRAPH_ENGINE_MODE = "engine"
+go run ./cmd/aura-supervisor
+
+# Create investigation via UI or BFF; restart supervisor mid-run (Ctrl+C), restart with same REDIS_URL
+# Resume should emit AGENT_SKIPPED for completed agents, then finish synthesis
+```
+
+Default `CHECKPOINT_BACKEND=memory` keeps in-process checkpoints (dev).
 
 ---
 

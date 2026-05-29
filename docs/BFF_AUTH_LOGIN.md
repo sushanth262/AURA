@@ -63,6 +63,9 @@ docker compose -f aura-deployment/docker-compose.backend.yml up --build
 | `MIN_AGENTS_FOR_SYNTHESIS` | `1` | Minimum successful agent nodes before synthesis. |
 | `SYNTHESIS_JOIN` | `any_success` | `any_success` or `all_required` join policy into synthesis. |
 | `AGENT_EXECUTION_MODE` | `inline` | `inline` uses snapshot fetcher; `worker` POSTs `AgentTask` to aura-worker execute API. |
+| `CHECKPOINT_BACKEND` | `memory` | `memory` (dev) or `redis` for durable graph checkpoints. |
+| `REDIS_URL` | _(empty)_ | Required when `CHECKPOINT_BACKEND=redis` (e.g. `redis://127.0.0.1:6379`). |
+| `CHECKPOINT_KEY_PREFIX` | _(empty)_ | Optional Redis key prefix (default `aura:orch:checkpoint:`). |
 | `INTERNAL_SHARED_SECRET` | _(empty)_ | Optional gate on `/internal/v1/…` |
 
 ### aura-worker
